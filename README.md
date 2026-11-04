@@ -38,9 +38,9 @@ A cloud library with album art and search. Share links let you choose the tracks
 </tr>
 <tr>
 <td width="50%" valign="top">
-<strong>Mobile</strong><br>
-Works on phones and tablets, with a layout made for small screens.<br>
-<img src="docs/screenshots/mobile.webp" alt="Fretlark on a phone" width="260">
+<strong>Editor</strong><br>
+Write notation and tab side by side, with a practice loop, track mixer, lyrics and chord diagrams.<br>
+Best on a laptop or tablet screen.
 </td>
 <td width="50%" valign="top">
 <strong>Also included</strong>
