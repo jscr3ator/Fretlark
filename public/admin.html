@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/favicon.svg?v=4">
+  <title>Library — Fretlark</title>
+  <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+  <link rel="stylesheet" href="/admin.css?v=05966fa1e6e3">
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-stack" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="13" rx="2.5"/><path d="M6 4h12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
+    <symbol id="i-device" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8 20h8M12 16.5V20"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4m-4.5 4.5L12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5m-4 4 4-4 4 4"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v7A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H16"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M15.5 5.5 18.5 8.5M4 20l1-4L16.2 4.8a2.1 2.1 0 0 1 3 3L8 19z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m14.5 5-7 7 7 7"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9.5 5 7 7-7 7"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h4m4 0h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  </svg>
+
+  <section id="loading" class="loading-state" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>Loading library…</p>
+  </section>
+
+  <section id="access" class="access" hidden aria-labelledby="access-title">
+    <div class="access-card">
+      <div class="access-identity">
+        <a class="brand access-brand" href="/admin" aria-label="Fretlark library">
+          <i class="brand-mark" role="img" aria-label="Fretlark"></i>
+        </a>
+        <div class="access-heading">
+          <h1 id="access-title">Sign in</h1>
+          <p id="access-message" class="access-intro">Your songs and shared links.</p>
+        </div>
+      </div>
+      <div class="access-fields">
+        <p id="legacy-access-note" class="legacy-note" hidden>Your older library is still private. Sign in or create a password account, then claim those songs from your library.</p>
+        <form id="auth-form" novalidate>
+          <div class="field-group">
+            <label class="field-label sr-only" for="auth-email">Username</label>
+            <input id="auth-email" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" placeholder="Username" required>
+            <input id="auth-recovery" name="recovery" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="Recovery key" hidden>
+            <label class="field-label sr-only" for="auth-password">Password</label>
+            <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="1024" placeholder="Password" required><button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 4 16 16"/></svg></button></div>
+          </div>
+          <div class="password-field" id="auth-password2-wrap" hidden><input id="auth-password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" placeholder="Confirm new password"></div>
+          <p id="password-hint" class="field-hint" hidden>Use at least 12 characters.</p>
+          <button id="forgot-link" class="text-button forgot-link" type="button">Forgot password?</button>
+          <p id="auth-status" class="form-status" role="status" aria-live="polite"></p>
+          <button id="auth-submit" class="button primary large full-width" type="submit">Sign in</button>
+        </form>
+        <form id="auth-factor-form" hidden><label class="field-label" for="auth-factor-code">Authenticator or recovery code</label><input id="auth-factor-code" class="otp-input" type="text" autocomplete="one-time-code" maxlength="40" required><p id="auth-factor-status" class="form-status" role="status"></p><button id="auth-factor-submit" class="button primary large full-width" type="submit">Continue</button><button id="auth-factor-back" class="text-button" type="button">Back to sign in</button></form>
+        <div id="auth-switch" class="auth-switch">
+          <span id="auth-switch-label">New to Fretlark?</span>
+          <button id="auth-toggle" class="text-button" type="button">Create an account</button>
+        </div>
+        <button id="retry-access" class="button full-width" type="button" hidden>Try again</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="recovery-banner" class="verify-banner" role="status" hidden><span>Save a recovery key so you can get back in if you forget your password.</span><button id="recovery-banner-open" class="verify-resend" type="button">Create key</button></div>
+
+  <div id="workspace" class="app-shell" hidden>
+    <aside class="sidebar" aria-label="Workspace">
+      <a class="brand" href="/admin" aria-label="Fretlark library"><i class="brand-mark" aria-hidden="true"></i><span>Fretlark</span></a>
+      <nav class="library-filters" aria-label="Filter songs">
+        <button class="filter active" type="button" data-filter="overview" aria-pressed="true"><svg class="icon"><use href="#i-home"/></svg><span>Overview</span></button>
+        <p class="sidebar-label">Library</p>
+        <button class="filter" type="button" data-filter="all" aria-pressed="false"><svg class="icon"><use href="#i-music"/></svg><span>All Songs</span><span class="filter-count" data-count="all"></span></button>
+        <button class="filter" type="button" data-filter="shared" aria-pressed="false"><svg class="icon"><use href="#i-link"/></svg><span>Shared</span><span class="filter-count" data-count="shared"></span></button>
+        <button class="filter" type="button" data-filter="private" aria-pressed="false"><svg class="icon"><use href="#i-lock"/></svg><span>Private</span><span class="filter-count" data-count="private"></span></button>
+      </nav>
+      <div class="sidebar-actions">
+        <p class="sidebar-label">Create</p>
+        <a class="sidebar-link" href="/editor/index.html?new=1"><svg class="icon"><use href="#i-pencil"/></svg><span>New Song</span></a>
+        <button class="sidebar-link" id="upload-open" data-upload-open type="button"><svg class="icon"><use href="#i-upload"/></svg><span>Upload Files</span></button>
+      </div>
+      <div class="sidebar-footer">
+        <div class="sidebar-storage" id="sidebar-storage" hidden><div class="storage-row"><span>Storage</span><span id="sidebar-storage-text"></span></div><div class="storage-meter" aria-hidden="true"><span></span></div></div>
+        <button class="account-button" type="button" data-account-open aria-label="Account settings">
+        <span id="account-avatar" class="avatar">T</span>
+        <span class="account-copy"><strong>Account</strong><small>Settings &amp; storage</small></span>
+        <svg class="icon account-gear"><use href="#i-gear"/></svg>
+      </button>
+      </div>
+    </aside>
+
+    <main id="overview" class="overview" hidden aria-labelledby="overview-title">
+      <div class="overview-inner">
+        <header class="overview-head">
+          <div><p id="overview-date" class="overview-date"></p><h1 id="overview-title">Overview</h1></div>
+          <div class="overview-actions">
+            <button class="icon-button overview-settings" type="button" data-account-open aria-label="Account settings"><svg class="icon"><use href="#i-gear"/></svg></button>
+            <button class="button" type="button" data-upload-open><svg class="icon"><use href="#i-upload"/></svg>Upload</button>
+            <a class="button primary" href="/editor/index.html?new=1"><svg class="icon"><use href="#i-plus"/></svg>New Song</a>
+          </div>
+        </header>
+        <section id="resume" class="panel resume" aria-labelledby="resume-title"></section>
+        <section class="panel" id="local-panel" aria-labelledby="local-title" hidden>
+          <header class="panel-head"><div><h2 id="local-title">On this device</h2><p class="panel-sub">Saved in this browser only. Not in your cloud library.</p></div></header>
+          <div id="local-songs" class="link-table"></div>
+        </section>
+        <section class="panel" aria-labelledby="links-title">
+          <header class="panel-head"><div><h2 id="links-title">Shared</h2><p class="panel-sub">What each link lets people see and do</p></div><button class="text-button" type="button" data-goto-filter="shared">Show in library</button></header>
+          <div id="link-table" class="link-table"></div>
+        </section>
+      </div>
+      <div id="overview-drop" class="drop-overlay" hidden aria-hidden="true"><div class="drop-card"><span class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></span><strong>Drop to upload</strong><span>Guitar Pro, MusicXML or alphaTex</span></div></div>
+    </main>
+
+    <section id="library" class="workspace-layout" hidden aria-label="Library">
+      <div class="library-browser" aria-labelledby="library-title">
+        <header class="library-heading">
+          <div class="library-title-row">
+            <h1 id="library-title">Library</h1>
+            <span id="result-count" class="result-count" aria-live="polite">0</span>
+            <div class="mobile-actions">
+              <a class="icon-button" href="/editor/index.html?new=1" aria-label="New song"><svg class="icon"><use href="#i-pencil"/></svg></a>
+              <button class="icon-button" id="upload-mobile" data-upload-open type="button" aria-label="Upload scores"><svg class="icon"><use href="#i-upload"/></svg></button>
+              <button class="icon-button" type="button" data-account-open aria-label="Account settings"><svg class="icon"><use href="#i-gear"/></svg></button>
+            </div>
+          </div>
+          <label class="search"><svg class="icon"><use href="#i-search"/></svg><span class="sr-only">Search songs or artists</span><input id="search" type="search" placeholder="Search" autocomplete="off"><kbd id="search-shortcut" aria-hidden="true">Ctrl K</kbd></label>
+        </header>
+        <section id="migration" class="migration-note" hidden aria-labelledby="migration-title"><strong id="migration-title">Older songs available</strong><button id="claim-lessons" class="text-button" type="button">Claim songs</button></section>
+        <div class="library-results">
+          <div id="lesson-list" class="lesson-list" aria-label="Songs"></div>
+          <div id="empty" class="empty-state" hidden>
+            <span class="empty-art" aria-hidden="true"><svg class="icon"><use href="#i-music"/></svg></span>
+            <h2>No songs yet</h2>
+            <p>Upload a file or open the editor to create a piece.</p>
+            <button class="button primary" id="empty-upload" type="button"><svg class="icon"><use href="#i-upload"/></svg>Upload Files</button>
+          </div>
+          <button id="retry-library" class="button" type="button" hidden>Try again</button>
+        </div>
+      </div>
+
+      <main id="song-detail" class="song-detail" aria-label="Selected song">
+        <div id="detail-empty" class="detail-empty">
+          <span class="empty-art" aria-hidden="true"><svg class="icon"><use href="#i-music"/></svg></span>
+          <h2>Select a song</h2>
+          <p>Preview it, open it in the editor or share it with anyone.</p>
+        </div>
+        <div id="song-content" hidden>
+          <nav class="song-mobile-nav" aria-label="Song navigation"><button id="detail-back" class="text-button back-button" type="button"><svg class="icon"><use href="#i-back"/></svg>Library</button></nav>
+          <header class="song-header">
+            <div id="selected-cover" class="selected-cover cover" aria-hidden="true"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></div>
+            <div class="song-info">
+              <div class="song-heading">
+                <span class="song-sharing"><svg class="icon icon-private"><use href="#i-lock"/></svg><svg class="icon icon-shared"><use href="#i-link"/></svg><span id="selected-state"></span></span>
+                <h1 id="selected-title" tabindex="-1"></h1>
+                <p class="song-byline"><span id="selected-artist"></span></p>
+                <p id="selected-meta" class="song-metadata"></p>
+              </div>
+              <div class="song-actions">
+                <a id="selected-edit" class="button primary" href="#"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a>
+                <button id="selected-cloud-save" class="button" type="button" hidden><svg class="icon"><use href="#i-upload"/></svg><span>Save to cloud</span></button>
+                <button id="detail-share" class="button" type="button"><svg class="icon"><use href="#i-share"/></svg>Share</button>
+                <button id="mobile-preview" class="button preview-button mobile-preview" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-play"/></svg>Preview</button>
+                <button id="selected-device" class="button" type="button" title="Move this song out of the cloud and keep it only in this browser"><svg class="icon"><use href="#i-device"/></svg>Only on this device</button>
+                <button id="selected-settings" class="icon-button bordered" type="button" aria-label="Song settings" title="Song settings"><svg class="icon"><use href="#i-sliders"/></svg></button>
+                <button id="selected-delete" class="icon-button bordered danger-icon" type="button" aria-label="Delete song" title="Delete song"><svg class="icon"><use href="#i-trash"/></svg></button>
+              </div>
+            </div>
+          </header>
+          <section class="song-preview" aria-label="Tab preview">
+            <div class="preview-toolbar">
+              <h2 id="preview-scope">Preview</h2>
+              <div class="preview-controls"><label class="track-picker"><span class="sr-only">Preview track</span><select id="preview-track" disabled><option>Loading track…</option></select></label><span id="preview-tempo" class="preview-tempo"></span></div>
+              <button id="selected-preview" class="button preview-button" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-play"/></svg>Audience View</button>
+            </div>
+            <div id="preview-paper" class="preview-paper">
+              <p id="preview-status" class="preview-status" role="status" aria-live="polite">Loading preview…</p><button id="preview-retry" class="button" type="button" hidden>Retry preview</button><div id="score-preview" aria-label="Song notation"></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </section>
+  </div>
+
+  <dialog id="account-dialog" class="settings-dialog" aria-labelledby="account-title">
+    <div class="settings-header"><h2 id="account-title">Settings</h2><button class="icon-button" type="button" data-close="account-dialog" aria-label="Close settings"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="Settings">
+        <div role="tablist" aria-label="Account settings">
+          <button id="tab-general" role="tab" aria-selected="true" aria-controls="settings-general" data-settings-tab="general">General</button>
+          <button id="tab-security" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-security" data-settings-tab="security">Security</button>
+          <button id="tab-plan" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-plan" data-settings-tab="plan">Storage</button>
+        </div>
+        <button id="manage-users" class="settings-admin-link" type="button" data-manage-users hidden>Users <span aria-hidden="true">↗</span></button>
+      </nav>
+      <div class="settings-content">
+        <section id="settings-general" role="tabpanel" aria-labelledby="tab-general">
+          <h3>Account</h3>
+          <div class="account-summary"><span class="avatar large" aria-hidden="true"></span><div><p id="account-label" class="account-email"></p><p class="field-hint">Personal account</p></div></div>
+          <div class="settings-row"><div><h4>Appearance</h4></div><div class="segmented" role="group" aria-label="Appearance"><button type="button" data-theme-choice="system" aria-pressed="true">System</button><button type="button" data-theme-choice="light" aria-pressed="false">Light</button><button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button></div></div>
+          <div class="settings-footer"><button id="signout" class="button" type="button" hidden>Sign out</button></div>
+        </section>
+        <section id="settings-security" role="tabpanel" aria-labelledby="tab-security" hidden>
+          <h3>Security</h3>
+          <div class="settings-row"><div><h4>Username</h4><p id="username-current">Shown on your account.</p></div><button id="username-open" class="button" type="button">Change</button></div>
+          <div class="settings-row"><div><h4>Recovery key</h4><p>The only way back in if you forget your password.</p></div><button id="recovery-open" class="button" type="button">Create new key</button></div>
+          <div class="settings-row"><div><h4>Password</h4><p>Choose a strong, unique password.</p></div><button id="password-open" class="button" type="button">Change</button></div>
+          <div class="settings-row"><div><h4>Two-factor authentication <span id="mfa-badge" class="status-badge">Off</span></h4><p id="mfa-detail">Add a code from your authenticator app.</p></div><button id="mfa-enable" class="button primary" type="button">Set up</button><button id="mfa-disable" class="button" type="button" hidden>Turn off</button></div>
+          <div id="recovery-row" class="settings-row" hidden><div><h4>Recovery codes</h4><p id="recovery-remaining"></p></div><button id="mfa-recovery" class="button" type="button">Replace codes</button></div>
+          <div class="settings-row"><div><h4>Sessions</h4><p id="security-sessions">Loading…</p></div><button id="sessions-others" class="button" type="button">Sign out others</button></div>
+          <button id="sessions-all" class="text-button security-signout" type="button">Sign out everywhere</button>
+          <p id="security-status" class="form-status" role="status"></p>
+        </section>
+        <section id="settings-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+          <h3>Storage</h3>
+          <section id="plan-card" class="plan-card" hidden aria-labelledby="plan-name">
+            <div class="plan-head"><div><p class="plan-title"><span id="plan-name">Cloud storage</span></p><p id="plan-detail" class="field-hint"></p></div></div>
+            <p id="account-storage" class="field-hint"></p><div class="storage-meter" aria-hidden="true"><span></span></div>
+          </section>
+          </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="users-dialog" class="users-dialog" aria-labelledby="users-title">
+    <div class="settings-header"><div><h2 id="users-title">Users</h2><p id="users-subtitle" class="field-hint">Manage access</p></div><button class="icon-button" type="button" data-close="users-dialog" aria-label="Close users"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="users-content">
+      <section id="users-overview">
+        <div class="users-toolbar"><input id="users-search" type="search" placeholder="Search users" aria-label="Search users"><button id="user-add" class="button primary" type="button">Add user</button></div>
+        <div id="users-list" class="users-list" aria-live="polite"></div>
+        <div id="users-pagination" class="users-pagination" hidden><button id="users-prev" class="button" type="button">Previous</button><span id="users-page"></span><button id="users-next" class="button" type="button">Next</button></div>
+      </section>
+      <section id="user-detail" hidden>
+        <button class="text-button users-back" type="button" data-users-back>‹ All users</button>
+        <div class="user-profile"><span id="user-avatar" class="avatar large" aria-hidden="true"></span><div><h3 id="user-detail-email"></h3><p id="user-detail-meta" class="field-hint"></p></div></div>
+        <div class="settings-row"><div><h4>Account access <span id="user-access-badge" class="status-badge"></span></h4><p id="user-access-detail"></p></div><button id="user-suspend" class="button" type="button">Suspend</button></div>
+        <div class="settings-row"><div><h4>Sessions</h4><p>Require a fresh sign-in on all devices.</p></div><button id="user-revoke" class="button" type="button">Sign out user</button></div>
+        <div class="settings-footer"><button id="user-delete" class="text-button danger-text" type="button">Delete account…</button></div>
+      </section>
+      <section id="user-create" hidden>
+        <button class="text-button users-back" type="button" data-users-back>‹ All users</button><h3>Add user</h3>
+        <form id="user-create-form"><label class="field-label" for="user-email">Username</label><input id="user-email" type="text" autocomplete="off" autocapitalize="none" maxlength="254" required><label class="field-label" for="user-password">Initial password</label><input id="user-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required><p class="field-hint">12 characters minimum. Share securely with the user.</p><div class="dialog-actions"><button class="button" type="button" data-users-back>Cancel</button><button class="button primary" type="submit">Create account</button></div></form>
+      </section>
+      <p id="users-status" class="form-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+
+  <dialog id="verify-dialog" class="focused-dialog" aria-labelledby="verify-title">
+    <form id="verify-form"><div class="dialog-head"><h2 id="verify-title">Verify it’s you</h2><button class="icon-button" type="button" data-close="verify-dialog" aria-label="Cancel verification"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="field-hint">Unlock sensitive actions for 10 minutes.</p><label class="field-label" for="verify-password">Current password</label><input id="verify-password" type="password" autocomplete="current-password" maxlength="1024" required><div id="verify-factor" hidden><label class="field-label" for="verify-code">Authenticator or recovery code</label><input id="verify-code" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div><p id="verify-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="button" type="button" data-close="verify-dialog">Cancel</button><button id="verify-submit" class="button primary" type="submit">Verify</button></div></form>
+  </dialog>
+
+  <dialog id="confirm-account-dialog" class="focused-dialog" aria-labelledby="confirm-account-title">
+    <form id="confirm-account-form"><div class="dialog-head"><h2 id="confirm-account-title"></h2><button class="icon-button" type="button" data-close="confirm-account-dialog" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="confirm-account-message" class="confirm-message"></p><div id="confirm-email-field"><label class="field-label" for="confirm-account-email">Type the account email to confirm</label><input id="confirm-account-email" type="email" autocomplete="off"></div><div class="dialog-actions"><button class="button" type="button" data-close="confirm-account-dialog">Cancel</button><button id="confirm-account-submit" class="button danger" type="submit">Confirm</button></div></form>
+  </dialog>
+
+  <dialog id="mfa-dialog" class="focused-dialog" aria-labelledby="mfa-title">
+    <div class="dialog-head"><h2 id="mfa-title">Set up two-factor</h2><button class="icon-button" type="button" data-close="mfa-dialog" aria-label="Close two-factor setup"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <section id="mfa-setup"><p class="field-hint">Scan with Google Authenticator, 1Password, or another authenticator app.</p><div id="mfa-qr" class="mfa-qr" role="img" aria-label="Authenticator setup QR code"></div><details class="manual-key"><summary>Can’t scan? Enter setup key</summary><code id="mfa-secret"></code><button id="mfa-copy-secret" class="text-button" type="button">Copy key</button></details><form id="mfa-confirm-form"><label class="field-label" for="mfa-code">Six-digit code</label><input id="mfa-code" class="otp-input" type="text" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" required><p id="mfa-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="button" type="button" data-close="mfa-dialog">Cancel</button><button id="mfa-confirm" class="button primary" type="submit">Enable two-factor</button></div></form></section>
+    <section id="mfa-codes" hidden><p class="recovery-intro">Save these recovery codes somewhere safe. Each works once if you lose access to your authenticator.</p><div id="recovery-codes" class="recovery-codes"></div><div class="recovery-tools"><button id="recovery-copy" class="button" type="button">Copy codes</button><button id="recovery-download" class="button" type="button">Download</button></div><label class="recovery-ack"><input id="recovery-saved" type="checkbox"> I saved my recovery codes</label><div class="dialog-actions"><button id="recovery-done" class="button primary" type="button" disabled>Done</button></div></section>
+  </dialog>
+
+  <dialog id="password-dialog" aria-labelledby="password-title">
+    <form id="password-form">
+      <div class="dialog-head"><h2 id="password-title">Change password</h2><button class="icon-button" type="button" data-close="password-dialog" aria-label="Close password settings"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <label class="field-label" for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <label class="field-label" for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required aria-describedby="new-password-hint">
+      <p id="new-password-hint" class="field-hint">At least 12 characters. Other devices will be signed out.</p>
+      <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required>
+      <p id="password-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button" type="button" data-close="password-dialog">Cancel</button><button id="password-submit" class="button primary" type="submit">Update Password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="username-dialog" aria-labelledby="username-title">
+    <form id="username-form">
+      <div class="dialog-head"><h2 id="username-title">Change username</h2><button class="icon-button" type="button" data-close="username-dialog" aria-label="Close"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <label class="field-label" for="username-new">New username</label><input id="username-new" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" required>
+      <p class="field-hint">3 to 30 letters, numbers, dots, dashes or underscores.</p>
+      <label class="field-label" for="username-password">Current password</label><input id="username-password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <p id="username-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button" type="button" data-close="username-dialog">Cancel</button><button id="username-submit" class="button primary" type="submit">Save username</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="recovery-dialog" aria-labelledby="recovery-title">
+    <form id="recovery-form">
+      <div class="dialog-head"><h2 id="recovery-title">New recovery key</h2><button class="icon-button" type="button" data-close="recovery-dialog" aria-label="Close"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <p class="field-hint">This replaces your old key. Enter your password to continue.</p>
+      <label class="field-label" for="recovery-password">Current password</label><input id="recovery-password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <p id="recovery-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button" type="button" data-close="recovery-dialog">Cancel</button><button id="recovery-submit" class="button primary" type="submit">Create key</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="recovery-show-dialog" aria-labelledby="recovery-show-title">
+    <div class="recovery-reveal">
+      <div class="dialog-head"><h2 id="recovery-show-title">Save your recovery key</h2></div>
+      <p class="field-hint">If you forget your password, this key is the only way back in. We can’t show it again, so keep it somewhere safe.</p>
+      <code id="recovery-key-text" class="recovery-key"></code>
+      <div class="recovery-tools"><button id="recovery-key-copy" class="button" type="button">Copy</button><button id="recovery-key-download" class="button" type="button">Download</button></div>
+      <label class="recovery-confirm"><input id="recovery-key-saved" type="checkbox"><span>I’ve saved my recovery key</span></label>
+      <div class="dialog-actions"><button id="recovery-key-done" class="button primary" type="button" disabled>Continue</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="student-preview-dialog" class="student-preview-dialog" aria-labelledby="student-preview-title">
+    <div class="dialog-head"><div><h2 id="student-preview-title">Audience View</h2><p>Exactly what your audience sees. Only you can open this preview.</p></div><button id="close-student-preview" class="icon-button" type="button" data-close="student-preview-dialog" aria-label="Close player preview"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <iframe id="student-preview-frame" title="Private player preview" allow="fullscreen"></iframe>
+  </dialog>
+
+  <dialog id="upload-dialog" aria-labelledby="upload-title">
+    <form id="upload-form">
+      <div class="dialog-head">
+        <div>
+          <h2 id="upload-title">Upload Files</h2>
+          <p>Files stay private until you share them.</p>
+        </div>
+        <button class="icon-button" type="button" data-close="upload-dialog" aria-label="Close upload"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <label class="dropzone" id="dropzone" for="upload-files">
+        <span class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></span>
+        <strong>Drop files here</strong>
+        <span class="upload-formats" id="upload-hint">Guitar Pro 3–8 · MusicXML · alphaTex</span>
+        <span class="choose-files">Choose Files…</span>
+        <input id="upload-files" class="sr-only" type="file" multiple accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex" aria-label="Choose files" aria-describedby="upload-hint upload-limit">
+      </label>
+      <p id="upload-limit" class="upload-limit">Up to 30 MB per file · 250 MB and 200 songs per library</p>
+      <div id="upload-selection" class="file-selection" aria-live="polite"></div>
+      <p id="upload-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button class="button" type="button" data-close="upload-dialog">Cancel</button>
+        <button id="upload-submit" class="button primary" type="submit">Upload</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="details-dialog" aria-labelledby="details-title">
+    <form id="details-form">
+      <div class="dialog-head">
+        <div>
+          <h2 id="details-title">Song settings</h2>
+          <p></p>
+        </div>
+        <button class="icon-button" type="button" data-close="details-dialog" aria-label="Close song settings"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <label class="field-label" for="detail-title">Title</label>
+      <input id="detail-title" required maxlength="180" autocomplete="off">
+      <label class="field-label" for="detail-artist">Artist</label>
+      <input id="detail-artist" maxlength="180" autocomplete="off">
+      <fieldset class="student-settings">
+        <legend>Audience player</legend>
+        <label class="field-label" for="detail-notation">Notation</label>
+        <select id="detail-notation">
+          <option value="both">Standard notation and tablature</option>
+          <option value="standard">Standard notation</option>
+          <option value="tab">Tablature</option><option value="slash">Rhythm</option><option value="numbered">Numbered</option>
+        </select>
+        <div class="settings-grid">
+          <label class="setting"><input id="setting-show-mixer" type="checkbox"><span><strong>Show mixer</strong><small>Let viewers mute, solo, and adjust tracks.</small></span></label>
+          <label class="setting"><input id="setting-track-controls" type="checkbox"><span><strong>Show track controls</strong><small>Let viewers choose visible tracks.</small></span></label>
+          <label class="setting"><input id="setting-metronome" type="checkbox"><span><strong>Metronome</strong><small>Enable a click during playback.</small></span></label>
+          <label class="setting"><input id="setting-count-in" type="checkbox"><span><strong>Count-in</strong><small>Start playback with a count-in.</small></span></label>
+          <label class="setting"><input id="setting-allow-print" type="checkbox"><span><strong>Allow printing</strong><small>Let viewers print the tabs.</small></span></label>
+          <label class="setting"><input id="setting-allow-download" type="checkbox"><span><strong>Show GP download button</strong><small>Show a download shortcut in the player.</small></span></label>
+        </div>
+      </fieldset>
+
+      <div class="replace-row">
+        <div><strong>Replace file</strong><span id="replace-name">Keeps the same shared link</span></div>
+        <label class="button" for="replace-file">Choose File…</label>
+        <input type="file" id="replace-file" accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex" hidden>
+      </div>
+      <p id="details-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button class="button danger" type="button" id="delete-lesson">Delete Song</button>
+        <span class="spacer"></span>
+        <button class="button" type="button" data-close="details-dialog">Cancel</button>
+        <button class="button primary" type="submit" id="details-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-heading">
+    <div class="dialog-head share-head"><h2 id="share-heading">Share</h2><button class="icon-button" type="button" data-close="share-dialog" aria-label="Close sharing"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="share-body">
+      <div class="shared-song"><span id="share-cover" class="share-document cover" aria-hidden="true"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></span><div><h3 id="share-title"></h3><p id="share-artist"></p></div></div>
+      <section id="link-card" class="link-card">
+        <label class="link-toggle"><span class="link-toggle-icon" aria-hidden="true"><svg class="icon"><use href="#i-link"/></svg></span><span class="link-toggle-copy"><strong>Share link</strong><small id="share-access-note"></small></span><input id="share-enabled" type="checkbox" role="switch" aria-describedby="share-access-note"></label>
+        <div class="link-details"><div class="link-details-inner">
+          <div class="link-field"><input id="share-url" readonly aria-label="Shared link"><button class="button primary" id="copy-link" type="button"><svg class="icon"><use href="#i-copy"/></svg>Copy</button></div>
+          <div class="link-meta"><span>View only · viewers can't edit</span><span class="link-actions"><a id="open-link" class="text-button" href="#" target="_blank" rel="noopener">Open<svg class="icon"><use href="#i-external"/></svg></a><button class="text-button" id="rotate-link" type="button">Reset link</button></span></div>
+        </div></div>
+      </section>
+      <p id="share-message" class="form-status" role="status" aria-live="polite"></p>
+      <p class="group-label">What your audience can use</p>
+      <div class="settings-list">
+        <details name="share-customize" class="share-row" id="share-tracks-section"><summary><span>Tracks</span><small id="share-tracks-summary">All tracks</small></summary><div class="share-row-body">
+          <label class="field-label" for="share-track-scope">Visible tracks</label><select id="share-track-scope"><option value="all">All tracks</option><option value="selected">Selected tracks</option></select>
+          <div id="share-track-list" class="share-checks" hidden></div><p id="share-tracks-status" class="form-status" role="status"></p>
+          <p class="share-hint">Hidden tracks are also silent in the player.</p>
+        </div></details>
+        <details name="share-customize" class="share-row" id="share-notation-section"><summary><span>Notation</span><small id="share-notation-summary">All views</small></summary><div class="share-row-body">
+          <p class="share-hint">Views your audience can switch between</p><div class="share-checks notation-checks">
+          <label><input type="checkbox" name="share-allowed-notation" value="tab">Tabs</label><label><input type="checkbox" name="share-allowed-notation" value="standard">Standard notes</label><label><input type="checkbox" name="share-allowed-notation" value="both">Tabs + standard</label><label><input type="checkbox" name="share-allowed-notation" value="slash">Rhythm</label><label><input type="checkbox" name="share-allowed-notation" value="numbered">Numbered</label></div>
+          <label class="field-label" for="share-default-notation">Opens in</label><select id="share-default-notation"></select>
+        </div></details>
+        <label class="switch-row"><span>Switch tracks</span><input id="share-track-controls" type="checkbox" role="switch"></label>
+        <label class="switch-row"><span>Track mixer</span><input id="share-show-mixer" type="checkbox" role="switch"></label>
+        <label class="switch-row"><span>Metronome</span><input id="share-metronome" type="checkbox" role="switch"></label>
+        <label class="switch-row"><span>Count-in</span><input id="share-count-in" type="checkbox" role="switch"></label>
+        <label class="switch-row"><span>Print &amp; save PDF</span><input id="share-allow-print" type="checkbox" role="switch"></label>
+        <label class="switch-row"><span>Download GP file</span><input id="share-allow-download" type="checkbox" role="switch"></label>
+      </div>
+      <p class="share-hint list-hint" id="share-download-note">Speed, tempo and looping are always available. Anyone with the link can retrieve the original file, including hidden tracks.</p>
+    </div>
+    <div class="share-footer"><span id="share-save-state" role="status" aria-live="polite"></span><button class="button" type="button" data-close="share-dialog">Done</button></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/editor/vendor/alphaTab.js?v=da5e91200ec7"></script>
+  <script src="/editor/vendor/fflate.js?v=c3b34f2e9f5e"></script>
+  <script src="/editor/model.js?v=636357f054c2"></script>
+  <script src="/admin-preview.js?v=a03b1950e8d5"></script>
+  <script src="/local-songs.js?v=d693a1bd3639"></script>
+  <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
+  <script src="/account-settings.js?v=aa3f6e9fbb1a"></script>
+  <script src="/admin.js?v=a87319342ed8"></script>
+</body>
+</html>

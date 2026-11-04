@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local development (npm run dev). Never commit .dev.vars.
+# Base64 of 32 random bytes. Generate one with:  node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+MFA_ENCRYPTION_KEY=

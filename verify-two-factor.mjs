@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {totp,newSecret,matchingStep,sealSecret,openSecret,recoveryCodes} from './lib/two-factor.mjs';
+const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+for(const [time,expected] of [[59,'94287082'],[1111111109,'07081804'],[1111111111,'14050471'],[1234567890,'89005924'],[2000000000,'69279037'],[20000000000,'65353130']])assert.equal(await totp(secret,Math.floor(time/30),8),expected,'RFC 6238 SHA-1 test vector');
+assert.match(newSecret(),/^[A-Z2-7]{32}$/);
+const now=Date.now(),step=Math.floor(now/30000),code=await totp(secret,step);
+assert.equal(await matchingStep(secret,code,now),step);
+assert.equal(await matchingStep(secret,code,now+90000),null);
+assert.equal(await matchingStep(secret,'not-a-code',now),null);
+const env={MFA_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')};
+const sealed=await sealSecret(env,'account-a',secret);
+assert.equal(sealed.includes(secret),false);assert.equal(await openSecret(env,'account-a',sealed),secret);
+await assert.rejects(()=>openSecret(env,'account-b',sealed));
+await assert.rejects(()=>openSecret({MFA_ENCRYPTION_KEY:Buffer.alloc(32,8).toString('base64')},'account-a',sealed));
+await assert.rejects(()=>sealSecret({},'account-a',secret),/unavailable/);
+const recovery=await recoveryCodes();assert.equal(new Set(recovery.codes).size,10);assert.equal(JSON.parse(recovery.hashes).length,10);assert.equal(recovery.hashes.includes(recovery.codes[0]),false);
+console.log('PASS: RFC 6238 vectors, TOTP window, encrypted secrets bound to account, missing/wrong key rejection, recovery entropy and hashing.');

@@ -1,0 +1,1 @@
+ALTER TABLE teachers ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0 CHECK (suspended IN (0,1));
