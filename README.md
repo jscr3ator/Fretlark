@@ -40,6 +40,7 @@ A cloud library with album art and search. Share links let you choose the tracks
 <td width="50%" valign="top">
 <strong>Editor</strong><br>
 Write notation and tab side by side, with a practice loop, track mixer, lyrics and chord diagrams.<br>
+<img src="docs/screenshots/editor-tab.webp" alt="Close-up of notation and tab in the Fretlark editor" width="100%"><br>
 Best on a laptop or tablet screen.
 </td>
 <td width="50%" valign="top">
