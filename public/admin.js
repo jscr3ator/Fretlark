@@ -519,7 +519,7 @@
         $('access-message').textContent = session.authType === 'legacy'
           ? 'Your older sign-in is available. Create or sign in to a password account to manage your library and claim those songs.'
           : !registrationOpen ? 'Registration is currently closed.'
-          : nextPath?.startsWith('/editor/') ? `Create a free account to keep your song in the cloud. ${Math.round((session.free_bytes || 0) / 1048576)} MB free.` : '';
+          : nextPath?.startsWith('/editor/') ? `Create a free account to keep your song in the cloud.` : '';
         setAuthMode(params.has('signup') && !signupShown ? 'register' : authMode);
         signupShown = true;
         return;
