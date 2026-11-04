@@ -226,6 +226,7 @@
           <div id="recovery-row" class="settings-row" hidden><div><h4>Recovery codes</h4><p id="recovery-remaining"></p></div><button id="mfa-recovery" class="button" type="button">Replace codes</button></div>
           <div class="settings-row"><div><h4>Sessions</h4><p id="security-sessions">Loading…</p></div><button id="sessions-others" class="button" type="button">Sign out others</button></div>
           <button id="sessions-all" class="text-button security-signout" type="button">Sign out everywhere</button>
+          <div id="delete-account-row" class="settings-row"><div><h4>Delete account</h4><p id="delete-account-detail">Permanently delete your account and every song saved in the cloud. Songs saved only on this device stay in this browser.</p></div><button id="delete-account-open" class="button danger" type="button">Delete account</button></div>
           <p id="security-status" class="form-status" role="status"></p>
         </section>
         <section id="settings-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
@@ -285,6 +286,18 @@
       <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required>
       <p id="password-status" class="form-status" role="status" aria-live="polite"></p>
       <div class="dialog-actions"><button class="button" type="button" data-close="password-dialog">Cancel</button><button id="password-submit" class="button primary" type="submit">Update Password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="delete-account-dialog" aria-labelledby="delete-account-title">
+    <form id="delete-account-form">
+      <div class="dialog-head"><h2 id="delete-account-title">Delete account</h2><button class="icon-button" type="button" data-close="delete-account-dialog" aria-label="Close account deletion"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <p class="field-hint">This permanently deletes your account and every song saved in the cloud. Songs saved only on this device stay in this browser. This cannot be undone.</p>
+      <label class="field-label" for="delete-account-confirm">Type your username to confirm</label><input id="delete-account-confirm" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required>
+      <label class="field-label" for="delete-account-password">Current password</label><input id="delete-account-password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <div id="delete-account-factor" hidden><label class="field-label" for="delete-account-code">Authenticator or recovery code</label><input id="delete-account-code" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div>
+      <p id="delete-account-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button" type="button" data-close="delete-account-dialog">Cancel</button><button id="delete-account-submit" class="button danger" type="submit" disabled>Delete my account</button></div>
     </form>
   </dialog>
 
@@ -440,7 +453,7 @@
   <script src="/admin-preview.js?v=a03b1950e8d5"></script>
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=aa3f6e9fbb1a"></script>
-  <script src="/admin.js?v=a87319342ed8"></script>
+  <script src="/account-settings.js?v=8878e5d251d7"></script>
+  <script src="/admin.js?v=d059fd03b257"></script>
 </body>
 </html>

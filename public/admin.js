@@ -510,6 +510,8 @@
       const accountCopy = document.querySelector('.account-copy strong');
       if (accountCopy && passwordAccount) accountCopy.textContent = session.email;
       $('signout').hidden = !passwordAccount;
+      $('delete-account-open').disabled = session.owner === true;
+      $('delete-account-detail').textContent = session.owner === true ? 'The owner account cannot be deleted. Hand over ownership first.' : 'Permanently delete your account and every song saved in the cloud. Songs saved only on this device stay in this browser.';
       $('migration').hidden = !(passwordAccount && session.legacyMigrationAvailable);
 
       if (passwordAccount && nextPath) { location.replace(nextPath); return; }
@@ -1336,7 +1338,7 @@
       $('search').focus();
     }
   });
-  accountControls=window.setupAccountControls({api,json,toast,openDialog,closeDialog,loadStorage});
+  accountControls=window.setupAccountControls({api,json,toast,openDialog,closeDialog,loadStorage,username:()=>localOwner});
   $('auth-factor-back').addEventListener('click',()=>{setAuthMode('login');$('access-message').textContent='';$('auth-password').focus();});
   $('auth-factor-form').addEventListener('submit',async event=>{
     event.preventDefault();const button=$('auth-factor-submit');if(button.disabled)return;button.disabled=true;status('auth-factor-status','');

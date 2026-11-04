@@ -1,9 +1,10 @@
 /* Account settings and owner controls. No credentials are persisted in browser storage. */
-window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorage}) => {
+window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorage,username}) => {
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const status=(id,text,error=false)=>{ $(id).textContent=text;$(id).classList.toggle('error',error); };
-  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
+  const currentUsername=()=>String(username?.()??'');
+  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
   const date=value=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
   const cancelled=()=>Object.assign(new Error('Cancelled'),{name:'AbortError'});
   const report=(id,error)=>{if(error.name!=='AbortError')status(id,error.message,true);};
@@ -51,6 +52,37 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     }catch(error){report('verify-status',error);}finally{$('verify-submit').disabled=false;}
   });
   $('verify-dialog').addEventListener('close',()=>{$('verify-form').reset();verifyPending?.reject(cancelled());verifyPending=null;});
+  $('delete-account-open').addEventListener('click',()=>{
+    if($('delete-account-open').disabled)return;
+    closeDialog('account-dialog');$('delete-account-form').reset();
+    $('delete-account-factor').hidden=!security?.mfa_enabled;$('delete-account-code').required=!!security?.mfa_enabled;
+    $('delete-account-submit').disabled=true;status('delete-account-status','');
+    openDialog('delete-account-dialog','delete-account-confirm');
+  });
+  $('delete-account-confirm').addEventListener('input',()=>{
+    $('delete-account-submit').disabled=deleteBusy||$('delete-account-confirm').value!==currentUsername();
+  });
+  $('delete-account-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(deleteBusy||$('delete-account-submit').disabled)return;
+    deleteBusy=true;status('delete-account-status','');
+    const controls=[...$('delete-account-form').querySelectorAll('button,input')];
+    controls.forEach(control=>control.disabled=true);$('delete-account-submit').textContent='Deleting…';
+    try{
+      await api('auth/delete-account',json('POST',{confirm:$('delete-account-confirm').value,current_password:$('delete-account-password').value,code:$('delete-account-code').value}));
+      try{localStorage.removeItem('score-studio-session');}catch{}
+      closeDialog('delete-account-dialog');location.replace('/');
+    }catch(error){
+      report('delete-account-status',error);controls.forEach(control=>control.disabled=false);
+      $('delete-account-submit').textContent='Delete my account';
+      $('delete-account-submit').disabled=$('delete-account-confirm').value!==currentUsername();
+      deleteBusy=false;
+    }
+  });
+  $('delete-account-dialog').addEventListener('close',()=>{
+    if(deleteBusy)return;
+    $('delete-account-form').reset();$('delete-account-factor').hidden=true;$('delete-account-code').required=false;
+    $('delete-account-submit').disabled=true;$('delete-account-submit').textContent='Delete my account';status('delete-account-status','');
+  });
   async function secure(action){
     try{return await action();}catch(error){if(error.code!=='reauth_required')throw error;}
     await verify();return action();
@@ -163,7 +195,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   $('recovery-done').addEventListener('click',()=>{if($('recovery-saved').checked)closeDialog('mfa-dialog');});
   $('mfa-dialog').addEventListener('close',()=>{codes=[];$('mfa-qr').replaceChildren();$('mfa-secret').textContent='';$('recovery-codes').replaceChildren();$('mfa-code').value='';});
   function canClose(id){
-    if(id==='users-dialog'&&busy||id==='mfa-dialog'&&mfaBusy||id==='verify-dialog'&&$('verify-submit').disabled)return false;
+    if(id==='users-dialog'&&busy||id==='mfa-dialog'&&mfaBusy||id==='delete-account-dialog'&&deleteBusy||id==='verify-dialog'&&$('verify-submit').disabled)return false;
     if(id==='mfa-dialog'&&codes.length&&!$('recovery-saved').checked){toast('Save your recovery codes, then check the confirmation.',true);return false;}
     return true;
   }
