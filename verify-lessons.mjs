@@ -16,7 +16,7 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
  if(algorithm.name==='PBKDF2')assert.ok(algorithm.iterations<=100000,'Workers PBKDF2 iteration limit exceeded');
  return deriveBits(algorithm,...args);
 };
-const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
 const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
@@ -76,6 +76,19 @@ const rebrandedHeaders={...rawHeaders,'x-fretphrase-metadata':rawHeaders['x-fret
 const rebrandedUpload=await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:rebrandedHeaders,body:rawBytes}),env);
 assert.equal(rebrandedUpload.status,201,'New brand upload header works alongside existing clients');
 const rebrandedLesson=await rebrandedUpload.json();assert.equal((await call(`admin/lessons/${rebrandedLesson.id}`,{method:'DELETE'})).status,200);
+// source_format: a MIDI upload is stored as GP but remembers it began as MIDI; editor saves keep it, a new file resets it.
+{
+  const meta=(extra)=>({...teacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretphrase-metadata':encodeURIComponent(JSON.stringify({file_name:'song.gp',file_size:rawBytes.length,title:'From MIDI',...extra}))});
+  let midi=await (await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:meta({source_format:'midi'}),body:rawBytes}),env)).json();
+  assert.equal(midi.source_format,'midi');
+  const plain=await (await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:meta({source_format:'bogus'}),body:rawBytes}),env)).json();
+  assert.equal(plain.source_format,'','unknown source formats are not stored');
+  midi=await (await handleApi(new Request(`https://scores.test/api/admin/lessons/${midi.id}/file`,{method:'PUT',headers:meta({version:midi.version}),body:rawBytes}),env)).json();
+  assert.equal(midi.source_format,'midi','an editor save without source_format keeps the MIDI label');
+  midi=await (await handleApi(new Request(`https://scores.test/api/admin/lessons/${midi.id}/file`,{method:'PUT',headers:meta({version:midi.version,source_format:'file'}),body:rawBytes}),env)).json();
+  assert.equal(midi.source_format,'','replacing with a real GP file clears it');
+  for(const row of [midi,plain])assert.equal((await call(`admin/lessons/${row.id}`,{method:'DELETE'})).status,200);
+}
 const beforeMismatch=objects.size;
 const mismatchHeaders={...rawHeaders,'x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:rawBytes.length+1}))};
 streamed=await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:mismatchHeaders,body:rawBytes}),env);
