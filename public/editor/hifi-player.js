@@ -166,6 +166,32 @@ export function buildMetronomeClicks(bars, division = 960, tickShift = 0) {
 // GM reverb send (CC91) used when the score carries none, as GM2 and GS synths do by default.
 export const DEFAULT_REVERB_SEND = 40;
 
+// SpessaSynth posts worklet messages in batches and handles them in one loop. When channels are
+// added mid-song (MIDI ports), a voice-count update can arrive before its "channelAdded" event and
+// throw, which drops the rest of the batch (including later channelAdded events) and leaves the
+// main-thread channel list permanently short. Handle each message on its own and clamp voice counts.
+export function guardSynthMessages(synth) {
+  const port = synth?.worklet?.port;
+  if (!port || typeof synth.handleMessages !== 'function') return;
+  port.onmessage = event => {
+    const messages = Array.isArray(event.data) ? event.data : [event.data];
+    for (const message of messages) {
+      if (message?.type === 'voiceCountChange') {
+        const counts = message.data || [];
+        const channels = synth.midiChannels || [];
+        let total = 0;
+        for (let index = 0; index < counts.length; index++) {
+          total += counts[index];
+          if (channels[index]) channels[index].voiceCount = counts[index];
+        }
+        synth._voiceCount = total;
+        continue;
+      }
+      try { synth.handleMessages([message]); } catch {}
+    }
+  };
+}
+
 function isPercussionTrack(track) {
   return !!track?.staves?.some(staff => staff?.isPercussion);
 }
@@ -368,6 +394,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     Sequencer = module.Sequencer;
     BasicMIDI = module.BasicMIDI;
     synth = new WorkletSynthesizer(context);
+    guardSynthMessages(synth);
     synth.connect(context.destination);
 
     const response = await fetch(soundFontUrl);
@@ -609,8 +636,10 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     state.channelPlan = rendered.plan;
     // Big scores use more than one MIDI port; make sure the synth has the channels.
     try {
-      const missing = rendered.plan.channelCount - (synth.midiChannels?.length ?? 16);
-      for (let i = 0; i < missing; i++) synth.addNewChannel();
+      // The main-thread list only grows when the worklet confirms, so count what was requested.
+      const have = Math.max(synth.midiChannels?.length ?? 16, state.requestedChannels || 0);
+      for (let i = have; i < rendered.plan.channelCount; i++) synth.addNewChannel();
+      state.requestedChannels = Math.max(have, rendered.plan.channelCount);
     } catch {}
     sequencer.loadNewSongList([{ binary: rendered.buffer, fileName: 'fretlark.mid' }]);
   }
@@ -704,6 +733,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     try {
       await offlineContext.audioWorklet.addModule(processor);
       offlineSynth = new WorkletSynthesizer(offlineContext, { eventsEnabled: false });
+      guardSynthMessages(offlineSynth);
       offlineSynth.connect(offlineContext.destination);
 
       if (isCancelled?.()) {

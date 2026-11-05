@@ -28,12 +28,25 @@
     const name = String(ctx.name || 'Drums').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]/g, ' ');
     const value = (n, fallback) => Number.isFinite(n) ? Math.max(0, Math.min(16, Math.round(n))) : fallback;
     const lines = ['\\track "' + name + '" {instrument percussion volume ' + value(ctx.volume, 12) + ' balance ' + value(ctx.balance, 8) + '}', '\\staff {score}'];
-    let index = 0, lastDynamic = null;
+    let index = 0, lastDynamic = null, pendingDynamic = null;
     for (let barIndex = 0; barIndex < ctx.bars.length; barIndex++) {
       const bar = ctx.bars[barIndex];
       while (index < steps.length && steps[index] < bar.start) index++;
       let pos = bar.start;
       const output = [];
+      // The bar's dynamic is its 75th-percentile hit level; it only changes when that moves by
+      // two or more levels, or one level for two bars running, so marks do not flicker.
+      const barLevels = [];
+      for (let i = index; i < steps.length && steps[i] < bar.end; i++) {
+        for (const velocity of grouped.get(steps[i]).keys.values()) barLevels.push(level(velocity));
+      }
+      let dynamic = lastDynamic ?? 4;
+      if (barLevels.length) {
+        barLevels.sort((a, b) => a - b);
+        const target = barLevels[Math.min(barLevels.length - 1, Math.floor(barLevels.length * 0.5))];
+        if (lastDynamic == null || Math.abs(target - lastDynamic) >= 2 || (target !== lastDynamic && target === pendingDynamic)) dynamic = target;
+        pendingDynamic = target !== dynamic ? target : null;
+      }
       while (pos < bar.end) {
         const hit = steps[index] === pos ? grouped.get(steps[index++]) : null;
         const end = Math.min(bar.end, index < steps.length ? steps[index] : bar.end);
@@ -47,17 +60,12 @@
           if (length === 12 || length === 6 || length === 3) effects.push('d');
           let symbol = 'r';
           if (hit && first) {
-            // One dynamic per beat, with ghost notes (one step softer) and accents (one or two
-            // steps louder) so a soft hi-hat under a hard kick keeps its own strength.
-            const levels = new Map();
-            for (const [articulation, velocity] of hit.keys) levels.set(articulation, level(velocity));
-            const values = Array.from(levels.values());
-            const loudest = Math.max(...values), softest = Math.min(...values);
-            let dynamic = loudest - 2 <= softest + 1 ? Math.max(loudest - 2, Math.min(softest + 1, lastDynamic ?? loudest)) : loudest - 2;
-            dynamic = Math.max(0, Math.min(7, dynamic));
-            const hitKeys = Array.from(levels.keys()).sort((a, b) => a - b).map(articulation => {
-              const offset = Math.max(-1, Math.min(2, levels.get(articulation) - dynamic));
-              return articulation + (offset === -1 ? '{g}' : offset === 1 ? '{ac}' : offset === 2 ? '{hac}' : '');
+            // One dynamic per bar (set by its louder hits). Only clearly softer hits become ghost
+            // notes and only clearly louder ones get accents, so the page stays readable while a
+            // soft hi-hat under a hard kick still plays softer.
+            const hitKeys = Array.from(hit.keys.keys()).sort((a, b) => a - b).map(articulation => {
+              const offset = level(hit.keys.get(articulation)) - dynamic;
+              return articulation + (offset <= -3 ? '{g}' : offset >= 3 ? '{hac}' : offset === 2 ? '{ac}' : '');
             });
             symbol = '(' + hitKeys.join(' ') + ')';
             if (dynamic !== lastDynamic) effects.push('dy ' + dynamics[dynamic]);

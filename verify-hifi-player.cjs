@@ -211,6 +211,34 @@ function track(index, primaryChannel, secondaryChannel = primaryChannel, extra =
     assert.ok(events.some(event => event.controller === 91), `${scoreTrack.name}: reverb send`);
   });
 
+  // A voice-count update ahead of its channelAdded events must not drop the rest of the batch.
+  {
+    const fake = {
+      midiChannels: Array.from({ length: 16 }, () => ({})),
+      worklet: { port: {} },
+      handleMessages(messages) {
+        for (const message of messages) {
+          if (message.type === 'voiceCountChange') {
+            for (let r = 0; r < message.data.length; r++) this.midiChannels[r].voiceCount = message.data[r];
+          } else if (message.type === 'eventCall' && message.data.type === 'channelAdded') {
+            this.midiChannels.push({});
+          } else if (message.type === 'eventCall' && message.data.type === 'channelParamChange') {
+            this.midiChannels[message.data.data.channel].param = message.data.data.value;
+          }
+        }
+      }
+    };
+    hifi.guardSynthMessages(fake);
+    const batch = [{ type: 'voiceCountChange', data: new Array(32).fill(1) }];
+    for (let i = 0; i < 16; i++) batch.push({ type: 'eventCall', data: { type: 'channelAdded' } });
+    batch.push({ type: 'eventCall', data: { type: 'channelParamChange', data: { channel: 40, value: 1 } } });
+    batch.push({ type: 'eventCall', data: { type: 'channelParamChange', data: { channel: 20, value: 7 } } });
+    fake.worklet.port.onmessage({ data: batch });
+    assert.equal(fake.midiChannels.length, 32, 'every channelAdded in the batch is applied');
+    assert.equal(fake._voiceCount, 32);
+    assert.equal(fake.midiChannels[20].param, 7, 'messages after a failing one still run');
+  }
+
   console.log('PASS: hifi player');
 })().catch(error => {
   console.error(error);

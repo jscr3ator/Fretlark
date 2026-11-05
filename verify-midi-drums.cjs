@@ -52,10 +52,21 @@ const quantized = load([{ midi: 46, ticks: 182, durationTicks: 1, velocity: 0.3 
 assert.deepEqual(quantized.hits.map(([tick, key]) => [tick, key]).sort((a, b) => a[1] - b[1]), [[480, 46], [480, 51]]);
 // Hits that share a beat keep their own strength: the soft hi-hat stays softer than the ride.
 assert.ok(quantized.hits.find(hit => hit[1] === 46)[2] < quantized.hits.find(hit => hit[1] === 51)[2]);
-// A kick and a soft hi-hat on one beat: the kick is accented, the hi-hat a ghost note.
+// A kick and a much softer hi-hat on one beat: the hi-hat becomes a ghost note.
 {
   const tex = trackTex([{ midi: 36, ticks: 0, velocity: 0.9 }, { midi: 42, ticks: 0, velocity: 0.5 }], { stepTicks: 120, bars: [bars[0]] });
-  assert.match(tex, /\(\d+\{hac\} \d+\{g\}\)|\(\d+\{g\} \d+\{hac\}\)/);
+  assert.match(tex, /\(36 42\{g\}\)/);
+}
+// Small velocity changes (humanized playing) give one dynamic and no per-note marks.
+{
+  const groove = [];
+  for (let bar = 0; bar < 4; bar++) for (let step = 0; step < 16; step += 2) {
+    groove.push({ midi: 42, ticks: (bar * 16 + step) * 120, velocity: 0.55 + ((bar * 16 + step) % 5) * 0.03 });
+  }
+  const grooveBars = Array.from({ length: 4 }, (_, i) => ({ start: i * 16, end: (i + 1) * 16 }));
+  const tex = trackTex(groove, { stepTicks: 120, bars: grooveBars });
+  assert.equal((tex.match(/dy /g) || []).length, 1, 'one dynamic for a steady groove');
+  assert.ok(!/\{(g|ac|hac)\}/.test(tex), 'no ghost or accent marks for small changes');
 }
 assert.equal(trackTex([{ midi: 200, ticks: 0, velocity: 0.5 }], { stepTicks: 120, bars: [bars[0]] }).includes('(87)'), true);
 let seed = 123456;
