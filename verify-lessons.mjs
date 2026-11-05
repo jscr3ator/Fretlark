@@ -571,3 +571,22 @@ console.log('PASS: contact email verification, reset emails, duplicate refusal, 
  }
 }
 console.log('PASS: local MAIL_DEBUG=log mail mode and its MAIL_FROM requirement.');
+// Resend: an API key plus MAIL_FROM turns email on, and the message goes to the Resend API with a bearer key.
+{
+ const {mailConfigured,sendMail}=await import('./lib/mail.mjs');
+ const realFetch=globalThis.fetch,calls=[],from='Fretlark <noreply@example.test>';
+ globalThis.fetch=async(url,init)=>{calls.push({url,init});return new Response('{"id":"msg"}',{status:200});};
+ try{
+  assert.equal(mailConfigured({RESEND_API_KEY:'re_test',MAIL_FROM:from}),true);
+  assert.equal(mailConfigured({RESEND_API_KEY:'re_test'}),false,'MAIL_FROM is required');
+  assert.equal(mailConfigured({MAIL_FROM:from}),false,'A provider is required');
+  await sendMail({RESEND_API_KEY:'re_test',MAIL_FROM:from},{to:'a@example.test',subject:'Hi',text:'t',html:'<p>t</p>'});
+  assert.equal(calls[0].url,'https://api.resend.com/emails');
+  assert.equal(calls[0].init.headers.Authorization,'Bearer re_test');
+  const sent=JSON.parse(calls[0].init.body);
+  assert.deepEqual(sent.to,['a@example.test']);assert.equal(sent.from,from);assert.equal(sent.subject,'Hi');
+  globalThis.fetch=async()=>new Response('{"message":"secret detail re_test"}',{status:403});
+  await assert.rejects(()=>sendMail({RESEND_API_KEY:'re_test',MAIL_FROM:from},{to:'a@example.test',subject:'Hi',text:'t',html:'t'}),err=>err.status===502&&!/re_test|secret/.test(err.message));
+ }finally{globalThis.fetch=realFetch;}
+}
+console.log('PASS: Resend provider config, request shape and error handling.');

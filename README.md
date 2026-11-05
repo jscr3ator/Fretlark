@@ -110,7 +110,8 @@ If anything fails, read the Troubleshooting section of SELF-HOSTING.md, fix it, 
 | `OWNER_ACCOUNT_ID` | setting | Account that manages users (set by `npm run make-owner`) |
 | `MFA_ENCRYPTION_KEY` | secret | Encrypts two-factor secrets (created once by setup) |
 | `MAIL_FROM` | setting, optional | From address for confirmation and reset email |
-| `EMAIL` | send_email binding, optional | Cloudflare Email Service binding that sends account email |
+| `RESEND_API_KEY` | secret, optional | Resend API key that sends account email (free plan available) |
+| `EMAIL` | send_email binding, optional | Cloudflare Email Service binding that sends account email instead |
 | `STORAGE_LIMIT_MB` | setting, optional | Cloud storage per account in MB (default 500) |
 | `BACKUP_BUCKET` | R2 binding, optional | Turns on the daily backup |
 

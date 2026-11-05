@@ -72,7 +72,8 @@ Plain settings live in the `vars` block of `wrangler.jsonc`. Secrets are set wit
 | `OWNER_ACCOUNT_ID` | var | none | Account id of the owner |
 | `MFA_ENCRYPTION_KEY` | secret | created by setup | Base64 of 32 random bytes. **Never change it** or two-factor logins stop working |
 | `MAIL_FROM` | var | none | From address for account email, for example `"Fretlark <noreply@example.com>"`. Required when email is enabled |
-| `EMAIL` | send_email binding | none | Cloudflare Email Service binding used to send account email. Optional |
+| `RESEND_API_KEY` | secret | none | API key from [Resend](https://resend.com) (free plan: 3,000 emails a month, 100 a day). Optional way to send account email |
+| `EMAIL` | send_email binding | none | Cloudflare Email Service binding used to send account email instead of Resend. Optional |
 | `STORAGE_LIMIT_MB` | var | `"500"` | Cloud storage per account in MB |
 | `BACKUP_BUCKET` | R2 binding | none | Turns on the daily backup |
 
@@ -93,7 +94,21 @@ Set `"REGISTRATION_OPEN": "false"` and deploy once your people have accounts. As
 
 Email is optional. Without it, everything works as before: people sign up with a username and password and save a one-time **recovery key** to reset a forgotten password. Sign-up and Settings hide every email control.
 
-To let people confirm an address and reset their password by email:
+To let people confirm an address and reset their password by email, pick one sender. Both need `MAIL_FROM` set to an address on a domain you own.
+
+**Option A: Resend (free plan available)**
+
+1. Create a [Resend](https://resend.com) account, add your domain and add the DNS records it shows (SPF and DKIM). Wait until the domain shows as verified.
+2. Create an API key in Resend with permission to send email.
+3. Set the sender address in `wrangler.jsonc`:
+   ```jsonc
+   "vars": {
+     "MAIL_FROM": "Fretlark <noreply@example.com>"
+   }
+   ```
+4. Store the key as a secret, then deploy: `npx wrangler secret put RESEND_API_KEY` and `npm run deploy`.
+
+**Option B: Cloudflare Email Service (Workers Paid plan)**
 
 1. Cloudflare Email Service needs the Workers Paid plan and a domain on Cloudflare DNS. In the dashboard, open **Compute → Email Service → Email Sending** and onboard the domain you will send from.
 2. Add the binding and sender address to `wrangler.jsonc`:
@@ -104,6 +119,8 @@ To let people confirm an address and reset their password by email:
    "send_email": [{ "name": "EMAIL" }]
    ```
 3. Run `npm run deploy`.
+
+If both are set, Resend is used.
 
 Confirmation links expire after 24 hours; password reset links expire after 30 minutes. Recovery keys still work, and people can add or remove an email later in **Settings → Security**.
 
@@ -161,7 +178,7 @@ npm run deploy:update
 
 **Can't enable two-factor (503)** → `MFA_ENCRYPTION_KEY` isn't set. Run `npm run setup` again (it only creates what is missing) or `npx wrangler secret put MFA_ENCRYPTION_KEY` with a base64 32-byte value.
 
-**Email setup returns 503** → email is optional. Add both the `EMAIL` send_email binding and `MAIL_FROM`, and onboard the sending domain under **Compute → Email Service → Email Sending**.
+**Email setup returns 503** → email is optional. Set `MAIL_FROM` and either the `RESEND_API_KEY` secret (with your domain verified in Resend) or the `EMAIL` send_email binding (with the sending domain onboarded under **Compute → Email Service → Email Sending**).
 
 **Two-factor stopped working after redeploying** → the key changed. Restore the original value from your backup.
 
