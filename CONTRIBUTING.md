@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping make Fretlark better. Here is the short version.
+Thanks for helping make Fretlark better. 
 
 ## Before you start
 
