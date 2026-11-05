@@ -177,7 +177,7 @@
   const authTitles = {login: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password'};
   const authButtons = {login: 'Sign in', register: 'Create account', forgot: 'Reset password', reset: 'Set new password'};
   const authCopy = {
-    register: "Create your account with an email and password. We'll send you a link to confirm your email.",
+    register: "Use your email and a password. We'll send a link to confirm it.",
     registerNoMail: 'Pick a username and a password. You can create a recovery key later in Settings.',
     forgot: 'Enter your username and the recovery key you saved from Settings.',
     forgotEmail: "Enter your email and we'll send you a reset link.",
