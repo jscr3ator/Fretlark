@@ -1,0 +1,18 @@
+services:
+  fretlark:
+    build: .
+    image: fretlark:local
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      REGISTRATION_OPEN: "${REGISTRATION_OPEN:-true}"
+      STORAGE_LIMIT_MB: "${STORAGE_LIMIT_MB:-}"
+      OWNER_ACCOUNT_ID: "${OWNER_ACCOUNT_ID:-}"
+      MFA_ENCRYPTION_KEY: "${MFA_ENCRYPTION_KEY:-}"
+    volumes:
+      - fretlark-data:/data
+
+volumes:
+  fretlark-data:
+    name: fretlark-data

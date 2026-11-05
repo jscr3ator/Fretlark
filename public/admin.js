@@ -34,7 +34,8 @@
   let resetToken = params.get('reset');
   const verifyToken = params.get('verify');
   if (resetToken) removeQueryParam('reset');
-  const sessionState = {mailEnabled: false, contactEmail: null, contactEmailVerified: false};
+  const sessionState = {mailEnabled: false, contactEmail: null, contactEmailAddress: null, contactEmailVerified: false};
+  let emailBannerError = '';
   let accountControls;
   let uploading = false;
   let savingDetails = false;
@@ -72,7 +73,9 @@
   function readSession(session) {
     sessionState.mailEnabled = session.mailEnabled === true;
     sessionState.contactEmail = session.contactEmail || null;
+    sessionState.contactEmailAddress = session.contactEmailAddress || null;
     sessionState.contactEmailVerified = session.contactEmailVerified === true;
+    renderEmailBanner();
     return session;
   }
 
@@ -80,17 +83,57 @@
     return readSession(await api('session'));
   }
 
+  function renderEmailBanner() {
+    const banner = $('email-banner');
+    const address = sessionState.contactEmailAddress || sessionState.contactEmail;
+    const show = !$('workspace').hidden && Boolean(address) && !sessionState.contactEmailVerified;
+    banner.hidden = !show;
+    banner.classList.toggle('error', show && Boolean(emailBannerError));
+    if (!show) {
+      if (!address || sessionState.contactEmailVerified) emailBannerError = '';
+      return;
+    }
+    $('email-banner-text').textContent = emailBannerError || `Confirm your email: we sent a link to ${address}.`;
+  }
+
+  async function resendEmailConfirmation() {
+    const email = sessionState.contactEmailAddress;
+    if (!email) return;
+    const button = $('email-banner-resend');
+    button.disabled = true; button.textContent = 'Sending…';
+    try {
+      await api('auth/email-resend', json('POST', {}));
+      emailBannerError = '';
+      toast(`We sent a confirmation link to ${email}. It expires in 24 hours.`);
+      await refreshSession();
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        emailBannerError = error.message || 'The confirmation email could not be sent. Try again.';
+        renderEmailBanner();
+      }
+    } finally {
+      button.disabled = false; button.textContent = 'Resend';
+    }
+  }
+
   async function handleEmailVerify() {
     if (!verifyToken) return;
     try {
       await api('auth/email-verify', json('POST', {token: verifyToken}));
       removeQueryParam('verify');
-      toast('Email confirmed');
-    } catch (error) {
+      emailBannerError = '';
+      try { await refreshSession(); } catch { /* The next init will retry. */ }
+      toast("Email confirmed. You're all set.");
+    } catch {
       removeQueryParam('verify');
-      toast(error.message || 'This confirmation link is invalid or has expired.', true);
+      const message = 'This confirmation link is invalid or has expired.';
+      try { await refreshSession(); } catch { /* The next init will retry. */ }
+      if (sessionState.contactEmail && !sessionState.contactEmailVerified) {
+        emailBannerError = message;
+        renderEmailBanner();
+      }
+      toast(message, true);
     }
-    try { await refreshSession(); } catch { /* The next init will retry. */ }
   }
 
   function status(id, message, error = false) {
@@ -119,10 +162,10 @@
   const authTitles = {login: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password'};
   const authButtons = {login: 'Sign in', register: 'Create account', forgot: 'Reset password', reset: 'Set new password'};
   const authCopy = {
-    register: 'Pick a username. Add an email for password resets, or save the recovery key you get instead.',
+    register: "Create your account with an email and password. We'll send you a link to confirm your email.",
     registerNoMail: 'Pick a username. You will get a recovery key to reset your password if you forget it.',
     forgot: 'Enter your username and the recovery key you saved when you signed up.',
-    forgotEmail: "Enter your username or email and we’ll send a reset link if that account has a confirmed email.",
+    forgotEmail: "Enter your email and we'll send you a reset link.",
     reset: 'Choose a new password. Every device will need to sign in again.'
   };
   function authSubmitText() {
@@ -140,8 +183,14 @@
     $('auth-switch-label').textContent = registering ? 'Already have an account?' : authMode === 'login' ? 'New to Fretlark?' : '';
     $('auth-toggle').textContent = authMode === 'login' ? 'Create an account' : registering ? 'Sign in' : 'Back to sign in';
     $('auth-switch').hidden = authMode === 'login' && !registrationOpen;
+    const signupEmail = registering && sessionState.mailEnabled;
+    const emailField = signupEmail || forgotEmail;
     $('auth-email').hidden = reset; $('auth-email').required = !reset;
-    $('auth-email').placeholder = forgotEmail ? 'Username or email' : registering ? 'Choose a username' : 'Username';
+    $('auth-email').placeholder = signupEmail ? 'Email' : forgotEmail ? 'Email' : registering ? 'Choose a username' : sessionState.mailEnabled ? 'Email or username' : 'Username';
+    $('auth-email').type = emailField ? 'email' : 'text';
+    $('auth-email').autocomplete = emailField ? 'email' : 'username';
+    $('auth-email').name = emailField ? 'email' : 'username';
+    $('auth-email-label').textContent = signupEmail || forgotEmail ? 'Email' : sessionState.mailEnabled && !registering && !forgot ? 'Email or username' : 'Username';
     $('auth-recovery').hidden = !(forgot && !forgotEmail); $('auth-recovery').required = forgot && !forgotEmail;
     $('auth-password').closest('.password-field').hidden = forgotEmail;
     $('auth-password').required = !forgotEmail;
@@ -150,9 +199,6 @@
     $('forgot-link').hidden = authMode !== 'login';
     $('forgot-recovery-link').hidden = !forgotEmail;
     $('reset-back').hidden = true;
-    $('auth-contact-wrap').hidden = !(registering && sessionState.mailEnabled);
-    $('auth-contact-hint').hidden = !(registering && sessionState.mailEnabled);
-    $('auth-contact-email').required = false;
     $('auth-password').autocomplete = newPassword ? 'new-password' : 'current-password';
     $('auth-password').minLength = newPassword ? 12 : 0;
     $('auth-password').type = 'password';
@@ -591,6 +637,7 @@
 
       $('workspace').hidden = false;
       $('library').hidden = false;
+      renderEmailBanner();
       const result = await api('admin/lessons');
       lessons = Array.isArray(result.lessons) ? result.lessons : [];
       if (!librarySong(librarySelectedId)) librarySelectedId = lessons[0]?.id || null;
@@ -699,10 +746,10 @@
     event.preventDefault();
     const form = $('auth-form');
     if (!form.reportValidity()) return;
-    const username = $('auth-email').value.trim();
+    const identifier = $('auth-email').value.trim();
     const password = $('auth-password').value;
-    if (authMode === 'forgot' && sessionState.mailEnabled && forgotMethod === 'email') return submitForgotRequest(username);
-    if (authMode === 'forgot') return submitRecovery(username, password);
+    if (authMode === 'forgot' && sessionState.mailEnabled && forgotMethod === 'email') return submitForgotRequest(identifier);
+    if (authMode === 'forgot') return submitRecovery(identifier, password);
     if (authMode === 'reset') return submitNewPassword(password);
     if (authMode === 'register' && (password.length < 12 || password.length > 1024)) {
       status('auth-status', 'Use a password between 12 and 1024 characters.', true);
@@ -715,14 +762,16 @@
     submit.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
     status('auth-status', '');
     try {
-      const contactEmail = authMode === 'register' && sessionState.mailEnabled ? $('auth-contact-email').value.trim() : '';
-      const payload = authMode === 'register' ? {username, password, ...(contactEmail ? {email: contactEmail} : {})} : {email: username, password};
+      const payload = authMode === 'register'
+        ? (sessionState.mailEnabled ? {email: identifier, password} : {username: identifier, password})
+        : {email: identifier, password};
       const result=await api(`auth/${authMode}`, json('POST', payload));
       if(result.mfa_required){
         authChallenge=result.challenge;$('auth-password').value='';$('auth-form').hidden=true;$('auth-switch').hidden=true;$('auth-factor-form').hidden=false;
         $('access-title').textContent='Two-factor authentication';$('access-message').textContent='Enter a code to finish signing in.';status('auth-factor-status','');$('auth-factor-code').focus();return;
       }
       $('auth-password').value = '';
+      if (authMode === 'register' && sessionState.mailEnabled && result.recovery_key && !result.skip_recovery_prompt) emailBannerError = 'The confirmation email could not be sent. Try again.';
       if (result.recovery_key && !result.skip_recovery_prompt) await showRecoveryKey(result.recovery_key);
       if (nextPath) { location.replace(nextPath); return; }
       await init();
@@ -1304,6 +1353,7 @@
   }
 
   $('auth-form').addEventListener('submit', submitAuth);
+  $('email-banner-resend').addEventListener('click', resendEmailConfirmation);
   $('forgot-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'email'); $('auth-email').value = email; $('auth-email').focus(); });
   $('forgot-recovery-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'recovery'); $('auth-email').value = email; $('auth-email').focus(); });
   $('reset-back').addEventListener('click', () => { resetToken = null; setAuthMode('forgot', 'email'); $('auth-email').focus(); });

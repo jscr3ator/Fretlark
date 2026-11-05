@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=ba0fd9d44b41">
+  <link rel="stylesheet" href="/admin.css?v=687af8af5428">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -57,14 +57,12 @@
         <p id="legacy-access-note" class="legacy-note" hidden>Your older library is still private. Sign in or create a password account, then claim those songs from your library.</p>
         <form id="auth-form" novalidate>
           <div class="field-group">
-            <label class="field-label sr-only" for="auth-email">Username</label>
+            <label id="auth-email-label" class="field-label sr-only" for="auth-email">Username</label>
             <input id="auth-email" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" placeholder="Username" required>
             <input id="auth-recovery" name="recovery" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="Recovery key" hidden>
             <label class="field-label sr-only" for="auth-password">Password</label>
             <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="1024" placeholder="Password" required><button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 4 16 16"/></svg></button></div>
-            <div class="password-field" id="auth-contact-wrap" hidden><input id="auth-contact-email" name="contact_email" type="email" autocomplete="email" maxlength="254" placeholder="Email (optional)"></div>
           </div>
-          <p id="auth-contact-hint" class="field-hint" hidden>Add one to reset your password by email. Without it you will get a recovery key to save.</p>
           <div class="password-field" id="auth-password2-wrap" hidden><input id="auth-password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" placeholder="Confirm new password"></div>
           <p id="password-hint" class="field-hint" hidden>Use at least 12 characters.</p>
           <button id="forgot-link" class="text-button forgot-link" type="button">Forgot password?</button>
@@ -83,7 +81,10 @@
     </div>
   </section>
 
-  <div id="recovery-banner" class="verify-banner" role="status" hidden><span>Save a recovery key so you can get back in if you forget your password.</span><button id="recovery-banner-open" class="verify-resend" type="button">Create key</button></div>
+  <div class="banner-stack">
+    <div id="recovery-banner" class="verify-banner" role="status" hidden><span>Save a recovery key so you can get back in if you forget your password.</span><button id="recovery-banner-open" class="verify-resend" type="button">Create key</button></div>
+    <div id="email-banner" class="verify-banner email-banner" role="status" hidden><span id="email-banner-text"></span><button id="email-banner-resend" class="verify-resend" type="button">Resend</button></div>
+  </div>
 
   <div id="workspace" class="app-shell" hidden>
     <aside class="sidebar" aria-label="Workspace">
@@ -471,6 +472,6 @@
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
   <script src="/account-settings.js?v=a8d087596e47"></script>
-  <script src="/admin.js?v=1a6ed4f39360"></script>
+  <script src="/admin.js?v=fc9469f75718"></script>
 </body>
 </html>

@@ -1,15 +1,38 @@
 # Agent guide
 
-You are helping someone run, change or self-host **Fretlark**, a Guitar Pro style tab editor, player and sharing library on Cloudflare Workers. Read this file first, then [SELF-HOSTING.md](SELF-HOSTING.md) for details.
+You are helping someone run, change or self-host **Fretlark**, a Guitar Pro style tab editor, player and sharing library. It is a Cloudflare Worker, but it also runs on a normal machine through Wrangler's local runtime, including the Docker option. Read this file first, then [SELF-HOSTING.md](SELF-HOSTING.md) for details.
 
 ## Rules
 
-- Never print, log or commit secrets (`MFA_ENCRYPTION_KEY`, `.dev.vars`, `.mfa-key.backup`).
-- Ask the user before: `wrangler login`, choosing a domain, closing sign-ups, deleting resources, or anything that costs money.
+- Never print, log or commit secrets (`MFA_ENCRYPTION_KEY`, `.dev.vars`, `.env`, `.mfa-key.backup`).
+- Ask the user before: `wrangler login`, choosing a domain, opening a port to the internet, closing sign-ups, deleting resources, or anything that costs money.
+- No Cloudflare account is needed for local or Docker use. Do not push someone toward Cloudflare unless they choose it.
 - Don't rename database columns or API paths; "lessons" and "teachers" in code are legacy internal names for songs and accounts.
 - The front end has **no build step**. Edit files in `public/` directly, then run `node scripts/version-assets.mjs` (the npm scripts do this) to refresh cache-busting hashes.
 
-## Set up a deployment (the usual task)
+## Choose a deployment
+
+Ask the user which one they want before starting.
+
+| Option | Use when | Start with |
+| --- | --- | --- |
+| Local | Trying it or developing | `npm install && npm run dev` |
+| Docker | VPS, home server or NAS | `docker compose up -d --build` |
+| Cloudflare | Global address, no server | `npm run setup` |
+
+## Docker deployment
+
+1. Check Docker and Compose v2 are installed. The image uses Debian `node:22-slim`; workerd needs glibc, so do not switch the base image to Alpine.
+2. From the repo root: `cp .env.example .env` (optional) and `docker compose up -d --build`.
+3. Verify: `curl -s http://127.0.0.1:8787/api/session` returns JSON containing `"registrationOpen":true`.
+4. Have the user create their account in the browser, then run:
+   `docker compose exec fretlark node scripts/make-owner.mjs <username> --local`
+   followed by `docker compose restart fretlark`.
+5. Data lives in the `fretlark-data` volume at `/data`. Do not delete it. Mention backups from SELF-HOSTING.md.
+6. Settings come from `.env` (see `.env.example`) and apply after `docker compose up -d`.
+7. For HTTPS, put it behind the user's reverse proxy and point it at port 8787.
+
+## Set up a Cloudflare deployment
 
 1. Check prerequisites: `node -v` must be 22.13+. A Cloudflare account must exist, and R2 must be enabled in it.
 2. `npm install`
@@ -42,6 +65,9 @@ You are helping someone run, change or self-host **Fretlark**, a Guitar Pro styl
 | `public/admin.*` | Library UI (sign-in, songs, sharing, account settings) |
 | `public/editor/` | `index.html` + `app.js` editor, `player.html` audience player, `model.js` score model, `vendor/` bundled alphaTab |
 | `drizzle/*.sql` | Migrations, applied in order by `wrangler d1 migrations apply` |
+| `Dockerfile` | Self-hosted image based on `node:22-slim` |
+| `docker-compose.yml` | Port 8787 plus the `fretlark-data` volume |
+| `scripts/docker-start.sh` | Applies migrations, creates the MFA key, starts `wrangler dev` on `0.0.0.0:8787` |
 | `verify-*.cjs/mjs` | Tests; `npm test` runs all |
 
 ## Changing things safely
@@ -49,10 +75,10 @@ You are helping someone run, change or self-host **Fretlark**, a Guitar Pro styl
 - Database changes: add a new numbered file in `drizzle/` (never edit an applied one) and add it to the in-memory schema list in `verify-lessons.mjs`.
 - Many tests run slices of `public/editor/app.js` in a Node VM; new identifiers used inside those slices must be guarded (`typeof x === 'function'`) so the slices still run.
 - Run `npm test` after every change.
-- Deploy with `npm run deploy` (code only) or `npm run deploy:update` (migrations + code).
+- Deploy with `npm run deploy` (code only) or `npm run deploy:update` (migrations + code). For Docker, rebuild with `docker compose up -d --build`.
 
 ## Common settings changes
 
-- Close sign-ups: set `REGISTRATION_OPEN` to `"false"` in `wrangler.jsonc`, `npm run deploy`.
-- Storage limits: set `STORAGE_LIMIT_MB` in `wrangler.jsonc`.
+- Close sign-ups: set `REGISTRATION_OPEN` to `"false"` in `wrangler.jsonc` (Cloudflare) or `.env` (Docker), then deploy or restart.
+- Storage limits: set `STORAGE_LIMIT_MB` in `wrangler.jsonc` or `.env`.
 - Brand name and wording: `public/admin.html`, `public/editor/index.html`.

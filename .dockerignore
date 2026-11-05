@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+.wrangler
+.env
+.env.*
+!.env.example
+*.log
+.mfa-key.backup
+docs

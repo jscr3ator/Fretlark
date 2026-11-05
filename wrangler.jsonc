@@ -8,9 +8,6 @@
   "vars": {
     "REGISTRATION_OPEN": "true",
     "STORAGE_LIMIT_MB": "500"
-    // Optional email verification and password reset. Uncomment MAIL_FROM, then set the RESEND_API_KEY secret
-    // (npx wrangler secret put RESEND_API_KEY) or enable the "send_email" binding below.
-    // "MAIL_FROM": "Fretlark <noreply@example.com>"
   },
   "assets": {
     "directory": "public",
@@ -32,6 +29,4 @@
       "bucket_name": "fretlark-files"
     }
   ]
-  // Optional: Cloudflare Email Service binding for account emails. Leave disabled for local development.
-  // "send_email": [{"name": "EMAIL"}]
 }
