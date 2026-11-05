@@ -2,7 +2,7 @@
 
 # Fretlark
 
-Write, play and share guitar tabs in your browser.
+Write, play and share guitar tabs in your browser. View the Public Version [here](https://fretlark.com/)
 
 [Features](#features) · [Run it your way](#run-it-your-way) · [Self-hosting guide](SELF-HOSTING.md) · [Contributing](CONTRIBUTING.md)
 
