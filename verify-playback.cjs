@@ -3,6 +3,12 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const playerCss = fs.readFileSync('public/player.css', 'utf8');
 assert.doesNotMatch(playerCss, /(?:^|})\s*svg\s*\{/, 'Player icon styling must not apply to notation SVGs');
+assert.match(playerCss, /\.practice-toolbar-inner\{[^}]*contain:layout/, 'Scrollable practice toolbar does not widen the phone viewport');
+const playerHtml = fs.readFileSync('public/editor/player.html', 'utf8');
+assert.match(playerHtml, /id="btn-print"/, 'Player exposes print when the lesson allows it');
+assert.match(playerHtml, /id="btn-download"/, 'Player exposes download when the lesson allows it');
+assert.match(playerHtml, /id="open-mixer"[^>]*aria-label="Track mix"/, 'Icon-only mobile mixer button keeps an accessible name');
+assert.match(playerHtml, /id="toggle-hand-guide"[^>]*aria-label="Fingering"/, 'Icon-only mobile fingering button keeps an accessible name');
 const editorCss=fs.readFileSync('public/editor/styles.css','utf8');
 for(const rule of editorCss.matchAll(/[^{}]*\.at-cursor-beat[^{}]*\{([^}]*)\}/g)) {
   assert.doesNotMatch(rule[1],/(?:^|;)\s*(?:width|height|transform|scale|min-width|max-width)\s*:/,'Cursor geometry belongs to alphaTab; a 2px width override becomes 0.02px after its native scaling');
@@ -151,6 +157,16 @@ assert.deepEqual(mouseActions,['focus','select'],'Score click commits the focuse
 context.check = () => true;
 const eraseKey = keyEvent('Backspace'); eraseKey.ctrlKey = false; document.handlers.keydown(eraseKey);
 assert.equal(element('btn-delete-note').clickCount, 1, 'Backspace shortcut deletes selected note');
+const spaceEvent = target => ({key: ' ', code: 'Space', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, target, preventDefault() { this.defaultPrevented = true; }});
+const playsBefore = element('btn-play').clickCount || 0;
+const scoreSpace = spaceEvent({tagName: 'DIV', isContentEditable: false, closest: () => null});
+document.handlers.keydown(scoreSpace);
+assert.equal(scoreSpace.defaultPrevented, true);
+assert.equal(element('btn-play').clickCount, playsBefore + 1, 'Space on the score starts playback');
+const buttonSpace = spaceEvent({tagName: 'BUTTON', isContentEditable: false, closest: selector => String(selector).includes('button')});
+document.handlers.keydown(buttonSpace);
+assert.equal(buttonSpace.defaultPrevented, undefined, 'Space on a focused button stays native');
+assert.equal(element('btn-play').clickCount, playsBefore + 1, 'Space on a focused button does not also start playback');
 const nameBinding=editor.split('\n').find(line=>line.includes("listen('new-track-type','change'"));
 vm.runInContext(nameBinding,context);
 element('new-track-name').value='My bass part';element('new-track-type').value='bass';element('new-track-type').dispatch('change');
@@ -192,4 +208,80 @@ element('duration-select').value='8';element('duration-select').dispatch('change
 assert.equal(M.beatAt(historyContext.score,historyContext.selected).duration,8,'Duration change updates beat');
 element('new-track-name').value='Acoustic Guitar';element('new-track-type').dispatch('change');
 assert.equal(element('new-track-name').value,'Electric Bass');
-console.log('PASS: practice/editor tempo; written repeat range; pause/resume position; saved mix and instrument transposition; silent diagnostics; measure and delete shortcuts.');
+// AudioWorklet setup is asynchronous while play/pause are synchronous. A pause during the
+// worklet load must not leave stale continuations connected and must not start a later play's
+// source twice; otherwise playback reports Playing but the position never advances.
+(async () => {
+  const atSource = fs.readFileSync('public/editor/vendor/alphaTab.js', 'utf8');
+  const classStart = atSource.indexOf('\tvar AlphaSynthAudioWorkletOutput = class');
+  const classEnd = atSource.indexOf('\n\t//#endregion', classStart);
+  assert.ok(classStart > 0 && classEnd > classStart, 'Audio worklet output class is present');
+  const sources = [], nodes = [], loads = [];
+  class Base {
+    static BufferSize = 4096;
+    constructor() {
+      this.context = {
+        state: 'running', sampleRate: 44100, destination: {},
+        createBuffer() { return {}; },
+        createBufferSource() {
+          const source = { buffer: null, loop: false, started: 0, stopped: 0, connect() {}, disconnect() {}, start() { this.started++; }, stop() { this.stopped++; } };
+          sources.push(source);
+          return source;
+        },
+      };
+    }
+    activate() {}
+    open() {}
+    play() { this.activate(); this.buffer = {}; this.source = this.context.createBufferSource(); }
+    pause() { this.pauses = (this.pauses || 0) + 1; if (this.source) { this.source.stop(0); this.source.disconnect(); this.source = null; } }
+    destroy() { this.destroyed = true; }
+    onReady() {}
+    onSamplesPlayed() {}
+    onSampleRequest() {}
+  }
+  class FakeWorkletNode {
+    constructor() {
+      this.connected = false; this.disconnected = false; this.messages = [];
+      this.port = {
+        addEventListener() {}, removeEventListener() {}, start() {},
+        postMessage(message) { this.owner.messages.push(message); },
+      };
+      this.port.owner = this;
+      nodes.push(this);
+    }
+    connect() { this.connected = true; }
+    disconnect() { this.disconnected = true; }
+  }
+  const sandbox = {
+    AlphaSynthWebAudioOutputBase: Base,
+    AudioWorkletNode: FakeWorkletNode,
+    BrowserUiFacade: {
+      createAlphaSynthAudioWorklet() { return new Promise((resolve, reject) => loads.push({ resolve, reject })); },
+    },
+    Logger: { error(message) { sandbox.errors.push(message); } },
+    Environment: { prepareForPostMessage: value => value },
+    AbortController,
+    errors: [],
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(atSource.slice(classStart, classEnd), sandbox);
+  const output = new sandbox.AlphaSynthAudioWorkletOutput({});
+  output.open(100);
+  const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await new Promise(resolve => setImmediate(resolve)); };
+  output.play();
+  output.pause();
+  output.play();
+  await flush();
+  assert.equal(loads.length, 1, 'A second play waits for the first worklet setup instead of racing it');
+  loads[0].resolve();
+  await flush();
+  assert.equal(loads.length, 2, 'After the first worklet settles, the queued play starts its own setup');
+  loads[1].resolve();
+  await flush();
+  assert.equal(nodes.filter(node => node.connected && !node.disconnected).length, 1, 'Only the current worklet stays connected');
+  assert.equal(sources.filter(source => source.started && !source.stopped).length, 1, 'Only the current source keeps playing');
+  assert.ok(sources.every(source => source.started <= 1), 'A stale setup cannot start a later play source twice');
+  assert.equal(output._worklet, nodes[1], 'The latest worklet is the active output');
+  assert.deepEqual(sandbox.errors, [], 'Rapid play/pause does not raise worklet lifecycle errors');
+  console.log('PASS: practice/editor tempo; written repeat range; pause/resume position; saved mix and instrument transposition; silent diagnostics; measure and delete shortcuts; serialized audio worklet lifecycle.');
+})().catch(error => { console.error(error); process.exit(1); });

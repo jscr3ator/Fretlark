@@ -6,7 +6,7 @@
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
   <title>Fretlark</title>
   <meta name="description" content="Edit scores, share songs, and practise music in Fretlark.">
-  <link rel="stylesheet" href="./styles.css?v=ac83908a242d">
+  <link rel="stylesheet" href="./styles.css?v=ee0518a1e6f5">
   <link rel="stylesheet" href="./command-palette.css?v=3d5609c81210">
   <link rel="stylesheet" href="./drum-pad.css?v=57e57a0359fb">
 </head>
@@ -114,7 +114,7 @@
         <div class="timeline-head"><span>MEASURES</span><span class="timeline-hint">Select a measure to navigate</span></div>
         <div class="timeline" id="timeline" aria-label="Measures"></div>
       </section>
-      <div class="workspace-status"><span id="file-title">Untitled.gp</span><span id="score-status">Ready</span><span class="selection-summary" id="selection-summary">Bar 1 · Beat 1</span><span class="status-help" id="status-help">Click a note, then type a fret</span><button id="btn-demo" class="status-action" type="button" title="Open the Knives Out reference song">Demo</button></div>
+      <div class="workspace-status"><span id="file-title">Untitled.gp</span><span id="score-status">Ready</span><span class="selection-summary" id="selection-summary">Bar 1 · Beat 1</span><span class="status-help" id="status-help">Click a note, then type a fret</span><button id="btn-demo" class="status-action" type="button" title="Open the Lantern Road reference song">Demo</button></div>
     </section>
 
     <aside class="inspector panel" aria-label="Song settings">
@@ -146,7 +146,7 @@
           <label class="field-label" for="capo-input">Capo</label><div class="number-unit"><input id="capo-input" class="text-input" type="number" min="0" max="24" value="0"><span>fret</span></div>
           <label class="field-label" for="transpose-input">Transpose</label><div class="number-unit"><input id="transpose-input" class="text-input" type="number" min="-24" max="24" value="0"><span>semitones</span></div>
           <div class="inspector-divider"></div>
-          <label class="field-label" for="track-volume">Track volume</label><div class="range-line"><input id="track-volume" type="range" min="0" max="16" value="12" aria-label="Track volume"><span class="range-value">12</span></div>
+          <label class="field-label" for="track-volume">Track volume</label><div class="range-line"><input id="track-volume" type="range" min="0" max="16" value="12" aria-label="Track volume"><span class="range-value" id="track-volume-label">12</span></div>
           <label class="field-label" for="track-pan">Pan</label><div class="range-line"><span class="pan-end">L</span><input id="track-pan" type="range" min="0" max="16" value="8" aria-label="Track pan"><span class="pan-end">R</span></div>
           <button class="button button-primary button-wide" id="btn-apply-track" type="button">Apply track settings</button>
         </section>
@@ -249,7 +249,7 @@
       </div>
       <p class="dialog-note">Most editing shortcuts work outside text fields; Save and Open also work from fields. Open GP/GPX, MusicXML, compressed MusicXML, or alphaTex. GP export preserves alphaTab-supported notation and playback. Proprietary RSE sounds, pedals, audio tracks, engraving and some metadata may change; keep your original file.</p><div class="dialog-footer"><button class="button button-primary" value="close">Done</button></div></form>
   </dialog>
-  <script src="./vendor/alphaTab.js?v=da5e91200ec7"></script>
+  <script src="./vendor/alphaTab.js?v=ac899d4f853a"></script>
   <script src="./vendor/fflate.js?v=c3b34f2e9f5e"></script>
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="./chords.js?v=2125f4ed0108"></script>
@@ -260,6 +260,6 @@
   <script src="./command-palette.js?v=8f20cab26120"></script>
   <script src="./theory.js?v=ecc5b4d0cb73"></script>
   <script src="./model.js?v=636357f054c2"></script>
-  <script src="./app.js?v=8033f89292d5"></script>
+  <script src="./app.js?v=e7e20fd40e3b"></script>
 </body>
 </html>

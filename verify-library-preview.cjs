@@ -26,7 +26,7 @@ function library(){
 }
 (async()=>{
  const l=library();l.context.render();
- assert.match(l.element('lesson-list').innerHTML,/<button[^>]*data-id="local:device-song"/,'Device row selects preview rather than navigating');
+ assert.match(l.element('lesson-list').innerHTML,/<div[^>]*role="button"[^>]*data-id="local:device-song"/,'Device row selects preview rather than navigating');
  assert.equal(l.element('result-count').textContent,'2','Library count includes device songs');
  l.context.onLessonAction({target:{closest(){return {dataset:{id:'local:device-song'}};}}});
  assert.equal(l.element('selected-title').textContent,'Device song');

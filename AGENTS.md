@@ -1,6 +1,6 @@
 # Agent guide
 
-You are helping someone run, change or self-host **Fretlark**, a Guitar Pro style tab editor, player and sharing library. It is a Cloudflare Worker, but it also runs on a normal machine through Wrangler's local runtime, including the Docker option. Read this file first, then [SELF-HOSTING.md](SELF-HOSTING.md) for details.
+You are helping someone run, change or self-host **Fretlark**, a tab editor that opens Guitar Pro files, with a player and sharing library. It is a Cloudflare Worker, but it also runs on a normal machine through Wrangler's local runtime, including the Docker option. Read this file first, then [SELF-HOSTING.md](SELF-HOSTING.md) for details.
 
 ## Rules
 

@@ -6,7 +6,21 @@ let coverIdentity='',coverGeneration=0,coverController=null,coverRetryTimer=null
 function resetCover(){
  if(!coverImage)return;
  coverImage.onerror=null;coverImage.src='/admin-assets/brand.svg?v=4';coverImage.alt='Fretlark';
- coverImage.classList.remove('album-cover');coverImage.removeAttribute('title');
+ coverImage.classList.remove('album-cover');coverImage.removeAttribute('title');hideCoverCredit();
+}
+function coverCreditUrl(value){
+ try{const url=new URL(value);return url.protocol==='https:'&&['music.apple.com','deezer.com','www.deezer.com'].includes(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:null;}catch{return null;}
+}
+function hideCoverCredit(){
+ if(typeof document==='undefined')return;const credit=document.getElementById('player-cover-credit');if(credit)credit.hidden=true;
+}
+function setCoverCredit(artwork){
+ if(typeof document==='undefined'||!coverImage?.parentElement)return;
+ const url=coverCreditUrl(artwork?.sourceUrl),label=artwork?.source==='Deezer'?'Deezer':artwork?.source==='Apple Music'?'Apple Music':null;
+ if(!url||!label){hideCoverCredit();return;}
+ let credit=document.getElementById('player-cover-credit');
+ if(!credit){credit=document.createElement('a');credit.id='player-cover-credit';credit.className='cover-credit';credit.target='_blank';credit.rel='noopener noreferrer';(document.querySelector('.song-caption')||coverImage.parentElement).appendChild(credit);}
+ credit.href=url;credit.textContent=label;credit.setAttribute('aria-label',`Album art: ${label}`);credit.title=`Album art: ${label}`;credit.hidden=false;
 }
 function retryCover(generation){
  if(generation!==coverGeneration||coverRetries>=2||coverRetryTimer)return;
@@ -37,7 +51,7 @@ function syncCover(retry=false){
    if(generation!==coverGeneration)return;
    coverImage.onerror=()=>{if(generation===coverGeneration){resetCover();retryCover(generation);}};
    coverImage.referrerPolicy='no-referrer';coverImage.alt='';coverImage.src=preload.src;
-   coverImage.classList.add('album-cover');coverImage.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;
+   coverImage.classList.add('album-cover');coverImage.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;setCoverCredit(artwork);
   };
   preload.src=url.href;
  }).catch(()=>retryCover(generation));
@@ -225,4 +239,5 @@ api.renderFinished.on(()=>{syncSong();syncRepeat();});
  document.addEventListener('change',e=>{if(mouse&&e.target.matches?.('select,input[type=checkbox],input[type=range]'))e.target.blur();});
  document.addEventListener('click',e=>{const b=e.target.closest?.('button');if(b&&e.detail>0)setTimeout(()=>{if(document.activeElement===b)b.blur();},0);});
 })();
+
 })();

@@ -7,6 +7,15 @@ const alphaTab = require('./public/editor/vendor/alphaTab.js');
 const midiGetter = Object.getOwnPropertyDescriptor(alphaTab.synth.AlphaSynthWebWorkerApi.prototype,'loadedMidiInfo').get;
 const loadedInfo = {endTick:3840};
 assert.equal(midiGetter.call({_loadedMidiInfo:loadedInfo}),loadedInfo,'Registering midiLoaded must read backing value, not recurse');
+// Seeking while the count-in plays ends the count-in before the main seek (PATCHES.md).
+{
+  const calls=[];
+  const sequencer={isPlayingCountIn:true,get isPlayingMain(){return !this.isPlayingCountIn;},metronomeChannel:9,resetCountIn(){calls.push('reset');this.isPlayingCountIn=false;},mainSeek(value){calls.push('seek:'+value);}};
+  const synth={sequencer,metronomeVolume:0,synthesizer:{noteOffAll(){calls.push('notesOff');},setupMetronomeChannel(){}},output:{resetSamples(){calls.push('resetSamples');}},updateTimePosition(){},_notPlayedSamples:99};
+  Object.getOwnPropertyDescriptor(alphaTab.synth.AlphaSynthBase.prototype,'timePosition').set.call(synth,5000);
+  assert.deepEqual(calls,['reset','notesOff','seek:5000','resetSamples'],'Count-in is ended, then the song seeks and drops queued count-in audio');
+  assert.equal(synth._notPlayedSamples,0);
+}
 const section = (start, end) => editor.slice(editor.indexOf(start), editor.indexOf(end, editor.indexOf(start)));
 
 // No-op edits must retain the score instance currently held by alphaTab.

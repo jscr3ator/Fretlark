@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=687af8af5428">
+  <link rel="stylesheet" href="/admin.css?v=e5ab21e24116">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -81,11 +81,6 @@
     </div>
   </section>
 
-  <div class="banner-stack">
-    <div id="recovery-banner" class="verify-banner" role="status" hidden><span>Save a recovery key so you can get back in if you forget your password.</span><button id="recovery-banner-open" class="verify-resend" type="button">Create key</button></div>
-    <div id="email-banner" class="verify-banner email-banner" role="status" hidden><span id="email-banner-text"></span><button id="email-banner-resend" class="verify-resend" type="button">Resend</button></div>
-  </div>
-
   <div id="workspace" class="app-shell" hidden>
     <aside class="sidebar" aria-label="Workspace">
       <a class="brand" href="/admin" aria-label="Fretlark library"><i class="brand-mark" aria-hidden="true"></i><span>Fretlark</span></a>
@@ -110,6 +105,12 @@
       </button>
       </div>
     </aside>
+
+    <div class="workspace-main">
+      <div id="banner-stack" class="banner-stack" hidden>
+        <div id="recovery-banner" class="verify-banner" role="status" hidden><span>Save a recovery key so you can get back in if you forget your password.</span><button id="recovery-banner-open" class="verify-resend" type="button">Create key</button><button class="verify-close" type="button" data-banner-dismiss="recovery" aria-label="Dismiss recovery key reminder"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+        <div id="email-banner" class="verify-banner email-banner" role="status" hidden><span id="email-banner-text"></span><button id="email-banner-resend" class="verify-resend" type="button">Resend</button><button class="verify-close" type="button" data-banner-dismiss="email" aria-label="Dismiss email confirmation reminder"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      </div>
 
     <main id="overview" class="overview" hidden aria-labelledby="overview-title">
       <div class="overview-inner">
@@ -170,7 +171,7 @@
         <div id="song-content" hidden>
           <nav class="song-mobile-nav" aria-label="Song navigation"><button id="detail-back" class="text-button back-button" type="button"><svg class="icon"><use href="#i-back"/></svg>Library</button></nav>
           <header class="song-header">
-            <div id="selected-cover" class="selected-cover cover" aria-hidden="true"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></div>
+            <div id="selected-cover" class="selected-cover cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></div>
             <div class="song-info">
               <div class="song-heading">
                 <span class="song-sharing"><svg class="icon icon-private"><use href="#i-lock"/></svg><svg class="icon icon-shared"><use href="#i-link"/></svg><span id="selected-state"></span></span>
@@ -202,6 +203,7 @@
         </div>
       </main>
     </section>
+    </div>
   </div>
 
   <dialog id="account-dialog" class="settings-dialog" aria-labelledby="account-title">
@@ -241,7 +243,7 @@
             <div class="plan-head"><div><p class="plan-title"><span id="plan-name">Cloud storage</span></p><p id="plan-detail" class="field-hint"></p></div></div>
             <p id="account-storage" class="field-hint"></p><div class="storage-meter" aria-hidden="true"><span></span></div>
           </section>
-          </section>
+        </section>
       </div>
     </div>
   </dialog>
@@ -274,7 +276,7 @@
   </dialog>
 
   <dialog id="confirm-account-dialog" class="focused-dialog" aria-labelledby="confirm-account-title">
-    <form id="confirm-account-form"><div class="dialog-head"><h2 id="confirm-account-title"></h2><button class="icon-button" type="button" data-close="confirm-account-dialog" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="confirm-account-message" class="confirm-message"></p><div id="confirm-email-field"><label class="field-label" for="confirm-account-email">Type the account email to confirm</label><input id="confirm-account-email" type="email" autocomplete="off"></div><div class="dialog-actions"><button class="button" type="button" data-close="confirm-account-dialog">Cancel</button><button id="confirm-account-submit" class="button danger" type="submit">Confirm</button></div></form>
+    <form id="confirm-account-form"><div class="dialog-head"><h2 id="confirm-account-title"></h2><button class="icon-button" type="button" data-close="confirm-account-dialog" aria-label="Cancel"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="confirm-account-message" class="confirm-message"></p><div id="confirm-email-field"><label class="field-label" for="confirm-account-email">Type the account username to confirm</label><input id="confirm-account-email" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"></div><div class="dialog-actions"><button class="button" type="button" data-close="confirm-account-dialog">Cancel</button><button id="confirm-account-submit" class="button danger" type="submit">Confirm</button></div></form>
   </dialog>
 
   <dialog id="mfa-dialog" class="focused-dialog" aria-labelledby="mfa-title">
@@ -431,7 +433,7 @@
   <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-heading">
     <div class="dialog-head share-head"><h2 id="share-heading">Share</h2><button class="icon-button" type="button" data-close="share-dialog" aria-label="Close sharing"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <div class="share-body">
-      <div class="shared-song"><span id="share-cover" class="share-document cover" aria-hidden="true"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></span><div><h3 id="share-title"></h3><p id="share-artist"></p></div></div>
+      <div class="shared-song"><span id="share-cover" class="share-document cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></span><div><h3 id="share-title"></h3><p id="share-artist"></p></div></div>
       <section id="link-card" class="link-card">
         <label class="link-toggle"><span class="link-toggle-icon" aria-hidden="true"><svg class="icon"><use href="#i-link"/></svg></span><span class="link-toggle-copy"><strong>Share link</strong><small id="share-access-note"></small></span><input id="share-enabled" type="checkbox" role="switch" aria-describedby="share-access-note"></label>
         <div class="link-details"><div class="link-details-inner">
@@ -465,13 +467,13 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/editor/vendor/alphaTab.js?v=da5e91200ec7"></script>
+  <script src="/editor/vendor/alphaTab.js?v=ac899d4f853a"></script>
   <script src="/editor/vendor/fflate.js?v=c3b34f2e9f5e"></script>
   <script src="/editor/model.js?v=636357f054c2"></script>
   <script src="/admin-preview.js?v=a03b1950e8d5"></script>
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=a8d087596e47"></script>
-  <script src="/admin.js?v=fc9469f75718"></script>
+  <script src="/account-settings.js?v=badefdba0ef8"></script>
+  <script src="/admin.js?v=4dcd89e316c5"></script>
 </body>
 </html>

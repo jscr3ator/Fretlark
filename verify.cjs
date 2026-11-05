@@ -6,12 +6,12 @@ const settings = new a.Settings();
 const read = data => a.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(data));
 const original = read(Buffer.from(require('fs').readFileSync('lib/reference-score.mjs','utf8').split("'")[1], 'base64'));
 const exported = read(new a.exporter.Gp7Exporter().export(original));
-assert.deepEqual([exported.title,exported.artist,exported.tempo,exported.tracks.length,exported.masterBars.length],['Knives Out','Radiohead',138,8,142]);
+assert.deepEqual([exported.title,exported.artist,exported.tempo,exported.tracks.length,exported.masterBars.length],['Lantern Road','Fretlark',120,5,54]);
 // Editing a real imported note must survive the same consolidate/export/reopen path as library saves.
 let importedEdit = M.restore(M.snapshot(original));
-const importedPos = {track:2,staff:0,bar:0,voice:0,beat:1,note:0};
+const importedPos = {track:0,staff:0,bar:0,voice:0,beat:1,note:0};
 const importedNote = M.beatAt(importedEdit,importedPos).notes[0];
-M.setNote(importedEdit,importedPos,{string:importedEdit.tracks[2].staves[0].tuning.length+1-importedNote.string,fret:5});
+M.setNote(importedEdit,importedPos,{string:importedEdit.tracks[0].staves[0].tuning.length+1-importedNote.string,fret:5});
 importedEdit = M.consolidate(importedEdit);
 assert.equal(M.beatAt(read(new a.exporter.Gp7Exporter().export(importedEdit,settings)),importedPos).notes[0].fret,5,'Imported note edit survives save/reopen');
 assert.ok(M.snapshot(original).length < 1000000, 'History and autosave must fit reasonably in browser storage');
@@ -176,4 +176,4 @@ M.pasteBar(editorScore,editorClipboard.json,editorClipboard.selected,{track:2,st
 editorScore=M.consolidate(editorScore);
 const crossTrack=read(new a.exporter.Gp7Exporter().export(editorScore,settings));
 assert.equal(M.beatAt(crossTrack,{track:2,staff:0,bar:0,voice:0,beat:0}).chord.name,'Am','Paste supports a destination without a chord map');
-console.log('PASS: GP8 reference import/export; note/effect/chord/lyric roundtrip; beat timing; melodic/drum editing; track/bar structure; multitrack MIDI; actual SF3 synthesis; copied-bar ID uniqueness and editor save/reopen repro.');
+console.log('PASS: Lantern Road demo import/export; note/effect/chord/lyric roundtrip; beat timing; melodic/drum editing; track/bar structure; multitrack MIDI; actual SF3 synthesis; copied-bar ID uniqueness and editor save/reopen repro.');

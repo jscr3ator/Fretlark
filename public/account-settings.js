@@ -153,7 +153,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   }
   $('confirm-account-form').addEventListener('submit',event=>{
     event.preventDefault();if(!confirmPending)return;
-    if(confirmPending.email&&$('confirm-account-email').value!==confirmPending.email){$('confirm-account-email').setCustomValidity('Enter the exact account email.');$('confirm-account-email').reportValidity();return;}
+    if(confirmPending.email&&$('confirm-account-email').value!==confirmPending.email){$('confirm-account-email').setCustomValidity('Enter the exact account username.');$('confirm-account-email').reportValidity();return;}
     const pending=confirmPending;confirmPending=null;closeDialog('confirm-account-dialog');pending.resolve(true);
   });
   $('confirm-account-email').addEventListener('input',()=>$('confirm-account-email').setCustomValidity(''));

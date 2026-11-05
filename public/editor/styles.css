@@ -394,7 +394,7 @@ body.hide-mixer .toast,body.focus-score .toast{bottom:24px}
   .palette{display:none}
   body.show-palette .palette{position:fixed;top:calc(var(--header) + var(--tabs));left:0;bottom:0;z-index:12;display:flex;width:220px;box-shadow:var(--shadow-pop)}
   .app-header{gap:4px;padding:0 8px;overflow-x:auto;scrollbar-width:none}
-  .file-actions #btn-new,.file-actions #btn-open,.file-actions .separator,.view-field,#btn-focus,#btn-fullscreen,.transport-lcd #time-total,.time-separator,.lcd-bar{display:none}
+  .file-actions .separator,.view-field,#btn-focus,#btn-fullscreen,.transport-lcd #time-total,.time-separator,.lcd-bar{display:none}
   .transport-lcd{min-width:0}
   .score-scroll{padding:10px}
   .score-tools-row{gap:6px;padding:0 8px}

@@ -35388,6 +35388,10 @@
 				timeSignatureNumerator = this._synthesizer.timeSignatureNumerator;
 				timeSignatureDenominator = this._synthesizer.timeSignatureDenominator;
 			}
+			// Fretlark patch: a missing synth tempo or signature after a seek made the count-in endless.
+			if (!(bpm > 0)) bpm = this._mainState.tempoChanges[0]?.bpm > 0 ? this._mainState.tempoChanges[0].bpm : 120;
+			if (!(timeSignatureNumerator > 0)) timeSignatureNumerator = 4;
+			if (!(timeSignatureDenominator > 0)) timeSignatureDenominator = 4;
 			state.tempoChanges.push(new MidiFileSequencerTempoChange(bpm, 0, 0));
 			const metronomeLengthInTicks = state.division * (4 / timeSignatureDenominator) | 0;
 			const metronomeLengthInMillis = metronomeLengthInTicks * (6e4 / (bpm * this._mainState.division));
@@ -39877,6 +39881,12 @@
 		}
 		set timePosition(value) {
 			Logger.debug("AlphaSynth", `Seeking to position ${value}ms (main)`);
+			// Fretlark patch: seeking during the count-in ends it, so the position is measured on the song, not the count-in.
+			if (this.sequencer.isPlayingCountIn) {
+				this.sequencer.resetCountIn();
+				this.synthesizer.noteOffAll(true);
+				this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this.metronomeVolume);
+			}
 			this.sequencer.mainSeek(value);
 			this.updateTimePosition(value, true);
 			if (this.sequencer.isPlayingMain) {
@@ -41590,7 +41600,19 @@
 		_bufferTimeInMilliseconds = 0;
 		_settings;
 		_boundHandleMessage;
+		/**
+		* The events received between a play call and the creation of its worklet.
+		*/
 		_pendingEvents;
+		/**
+		* The worklet is created asynchronously while play, pause and destroy are synchronous.
+		* Their audio graph operations are chained here to run in the order of the calls.
+		*/
+		_operations = Promise.resolve();
+		/**
+		* Aborted on destroy, to stop waiting for a worklet load which might never complete.
+		*/
+		_destroyed = new AbortController();
 		constructor(settings) {
 			super();
 			this._settings = settings;
@@ -41602,28 +41624,72 @@
 			this.onReady();
 		}
 		play() {
-			super.play();
+			this.activate();
 			const ctx = this.context;
-			if (this._pendingEvents) this._pendingEvents = void 0;
-			BrowserUiFacade.createAlphaSynthAudioWorklet(ctx, this._settings).then(() => {
-				this._worklet = new AudioWorkletNode(ctx, "alphatab", {
-					numberOfOutputs: 1,
-					outputChannelCount: [2],
-					processorOptions: { bufferTimeInMilliseconds: this._bufferTimeInMilliseconds }
-				});
-				this._worklet.port.addEventListener("message", this._boundHandleMessage);
-				this._worklet.port.start();
-				this.source.connect(this._worklet);
-				this.source.start(0);
-				this._worklet.connect(ctx.destination);
-				const pending = this._pendingEvents;
-				if (pending) {
-					for (const e of pending) this._worklet.port.postMessage(e);
-					this._pendingEvents = void 0;
-				}
-			}, (reason) => {
-				Logger.error("WebAudio", `Audio Worklet creation failed: reason=${reason}`);
+			const pendingEvents = [];
+			this._pendingEvents = pendingEvents;
+			this._enqueue(() => this._start(ctx, pendingEvents));
+		}
+		pause() {
+			this._pendingEvents = void 0;
+			this._enqueue(() => this._stop());
+		}
+		destroy() {
+			this._destroyed.abort();
+			this.pause();
+			this._enqueue(() => super.destroy());
+		}
+		_enqueue(operation) {
+			this._operations = this._operations.then(operation).catch((e) => {
+				Logger.error("WebAudio", `Audio Worklet operation failed: reason=${e}`);
 			});
+		}
+		/**
+		* Loads the worklet module.
+		* @returns false if the output was destroyed before the load completed.
+		*/
+		_loadWorklet(ctx) {
+			const signal = this._destroyed.signal;
+			return new Promise((resolve, reject) => {
+				if (signal.aborted) {
+					resolve(false);
+					return;
+				}
+				const load = BrowserUiFacade.createAlphaSynthAudioWorklet(ctx, this._settings);
+				const onAbort = () => resolve(false);
+				signal.addEventListener("abort", onAbort, { once: true });
+				load.then(() => resolve(true), reject).finally(() => signal.removeEventListener("abort", onAbort));
+			});
+		}
+		async _start(ctx, pendingEvents) {
+			if (!await this._loadWorklet(ctx)) return;
+			const worklet = new AudioWorkletNode(ctx, "alphatab", {
+				numberOfOutputs: 1,
+				outputChannelCount: [2],
+				processorOptions: { bufferTimeInMilliseconds: this._bufferTimeInMilliseconds }
+			});
+			this._worklet = worklet;
+			worklet.port.addEventListener("message", this._boundHandleMessage);
+			worklet.port.start();
+			this.buffer = ctx.createBuffer(2, AlphaSynthWebAudioOutputBase.BufferSize, ctx.sampleRate);
+			this.source = ctx.createBufferSource();
+			this.source.buffer = this.buffer;
+			this.source.loop = true;
+			this.source.start(0);
+			this.source.connect(worklet);
+			worklet.connect(ctx.destination);
+			for (const e of pendingEvents) worklet.port.postMessage(e);
+			if (this._pendingEvents === pendingEvents) this._pendingEvents = void 0;
+		}
+		_stop() {
+			super.pause();
+			const worklet = this._worklet;
+			if (worklet) {
+				worklet.port.postMessage({ cmd: "alphaSynth.output.stop" });
+				worklet.port.removeEventListener("message", this._boundHandleMessage);
+				worklet.disconnect();
+			}
+			this._worklet = null;
 		}
 		_handleMessage(e) {
 			const data = e.data;
@@ -41636,23 +41702,10 @@
 					break;
 			}
 		}
-		pause() {
-			super.pause();
-			if (this._worklet) {
-				this._worklet.port.postMessage({ cmd: "alphaSynth.output.stop" });
-				this._worklet.port.removeEventListener("message", this._boundHandleMessage);
-				this._worklet.disconnect();
-			}
-			this._worklet = null;
-			this._pendingEvents = void 0;
-		}
 		_postWorkerMessage(message) {
-			const worklet = this._worklet;
-			if (worklet) worklet.port.postMessage(message);
-			else {
-				this._pendingEvents ??= [];
-				this._pendingEvents.push(message);
-			}
+			const pendingEvents = this._pendingEvents;
+			if (pendingEvents) pendingEvents.push(message);
+			else this._worklet?.port.postMessage(message);
 		}
 		addSamples(f) {
 			this._postWorkerMessage({

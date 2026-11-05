@@ -27,7 +27,10 @@ export default {
   }
   else if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
    const token = url.pathname.split('/')[2];
-   response = new Response(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fretlark</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}iframe{position:fixed;inset:0}</style></head><body><iframe title="Lesson practice player" src="/editor/player.html?share=${token}" allow="fullscreen"></iframe></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+   response = new Response(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><link rel="icon" href="/favicon.svg?v=4"><title>Fretlark</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}iframe{position:fixed;inset:0}</style></head><body><iframe title="Lesson practice player" src="/editor/player.html?share=${token}" allow="fullscreen"></iframe></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+  } else if(['/editor', '/editor/'].includes(url.pathname)) {
+   // Static assets do not map folders to index.html, so the editor's short address is served here.
+   response = await env.ASSETS.fetch(new Request(new URL('/editor/index.html', url), cleanRequest));
   } else if(url.pathname === '/') {
    response = await env.ASSETS.fetch(new Request(new URL('/admin.html',url),cleanRequest));
   } else if(['/admin', '/admin/'].includes(url.pathname)) {
@@ -35,6 +38,7 @@ export default {
   } else response = await env.ASSETS.fetch(cleanRequest);
   const result = new Response(response.body,response);
   for(const [key,value] of Object.entries(security)) result.headers.set(key,value);
+  if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname) || (url.pathname === '/editor/player.html' && url.searchParams.has('share'))) result.headers.set('X-Robots-Tag','noindex, nofollow');
   return result;
  }
 };

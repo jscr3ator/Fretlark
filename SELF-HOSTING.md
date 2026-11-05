@@ -16,7 +16,7 @@ Fretlark is a Cloudflare Worker, but you do not need Cloudflare to run it. Wrang
 | Accounts and song list | D1 emulated as SQLite in the data folder | D1 |
 | Song files | R2 emulated on disk in the data folder | R2 |
 
-Accounts use a one-time recovery key to reset a forgotten password. There is no third-party database and no build step for the front end.
+Accounts can create a recovery key in Settings to reset a forgotten password. There is no third-party database and no build step for the front end.
 
 ## Option 1: Run it locally
 
@@ -151,7 +151,7 @@ What it does, in order: checks your login, creates the D1 database, creates the 
 
 ### Create the owner account
 
-1. Open the address setup printed and choose **Create an account**. You get a **recovery key**: save it.
+1. Open the address setup printed and choose **Create an account**. Then create a **recovery key** in Settings → Security and save it.
 2. Run `npm run make-owner -- your-username`.
 
 ### Custom domain

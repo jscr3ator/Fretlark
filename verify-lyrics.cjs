@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
 const at=require('./public/editor/vendor/alphaTab.js');
 const M=require('./public/editor/model.js');
 const L=require('./public/editor/lyrics.js');
@@ -27,4 +28,5 @@ score=M.consolidate(score);
 L.assignLyrics(score,0,0,'won-der-ful today');
 assert.equal(L.readLyrics(score,0,0),'won-der-ful today');
 assert.deepEqual(reopen(score).tracks[0].staves[0].bars[0].voices[0].beats.map(b=>b.lyrics?.[0]),['won-','der-','ful','today']);
+assert.match(fs.readFileSync('public/editor/app.js','utf8'),/listen\('lyrics-start','change',loadLyricsText\)/,'Changing the lyric start bar reloads that line');
 console.log('Lyrics checks passed');

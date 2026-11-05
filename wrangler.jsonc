@@ -13,7 +13,7 @@
     "directory": "public",
     "binding": "ASSETS",
     "html_handling": "none",
-    "run_worker_first": ["/", "/admin", "/admin/", "/api/*", "/view/*", "/editor/player.html"]
+    "run_worker_first": ["/", "/admin", "/admin/", "/api/*", "/view/*", "/editor", "/editor/", "/editor/player.html"]
   },
   "d1_databases": [
     {

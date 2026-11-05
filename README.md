@@ -131,7 +131,7 @@ Details for each are in [SELF-HOSTING.md](SELF-HOSTING.md).
 <summary>Show the prompt</summary>
 
 ```text
-I want to self-host Fretlark, an open-source Guitar Pro style tab editor and player.
+I want to self-host Fretlark, an open-source tab editor that opens Guitar Pro files, with a player and sharing library.
 
 Repo: https://github.com/jscr3ator/Fretlark
 
@@ -172,3 +172,5 @@ verify-*.{cjs,mjs}      tests (npm test)
 ## Contributing, security and license
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, report vulnerabilities through [SECURITY.md](SECURITY.md), and check [THIRD-PARTY.md](THIRD-PARTY.md) for bundled components. Fretlark is released under the [MIT license](LICENSE).
+
+Guitar Pro is a trademark of Arobas Music. Fretlark is not affiliated with or endorsed by Arobas Music.

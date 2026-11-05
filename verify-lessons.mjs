@@ -23,7 +23,7 @@ const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-
 env.ASSETS={async fetch(request){assert.equal(new URL(request.url).pathname,'/editor/demo.gp');return new Response(readFileSync('public/editor/demo.gp'),{headers:{'Content-Type':'application/octet-stream','Cache-Control':'public, max-age=3600'}});}};
 assert.deepEqual(readFileSync('public/editor/demo.gp'),Buffer.from(referenceScore,'base64'),'Static demo must preserve the reference GP');
 async function call(path,{method='GET',body,headers=teacher,raw=false}={}){const response=await handleApi(new Request('https://scores.test/api/'+path,{method,headers:{...(method!=='GET'?{origin:'https://scores.test'}:{}),...headers,...(body&&!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData||typeof body==='string'?body:body?JSON.stringify(body):undefined}),env);return {status:response.status,cookie:response.headers.get('set-cookie'),data:raw?new Uint8Array(await response.arrayBuffer()):await response.json()};}
-function upload(version=0,title='Knives Out'){const form=new FormData();form.set('file',new File([Buffer.from(referenceScore,'base64')],'reference.gp'));for(const [key,value]of Object.entries({title,artist:'Radiohead',notes:'Loop bars 9–16 at 75%.',track_count:8,bar_count:142,tempo:138,version}))form.set(key,value);return form;}
+function upload(version=0,title='Lantern Road'){const form=new FormData();form.set('file',new File([Buffer.from(referenceScore,'base64')],'reference.gp'));for(const [key,value]of Object.entries({title,artist:'Fretlark',notes:'Loop bars 7–14 at 75%.',track_count:5,bar_count:54,tempo:120,version}))form.set(key,value);return form;}
 assert.equal((await call('session',{headers:{}})).data.admin,false);
 assert.equal((await call('session')).data.admin,true);
 assert.equal((await call('admin/lessons',{headers:{}})).status,403);
@@ -32,7 +32,7 @@ assert.equal((await call('demo',{headers:{},raw:true})).data.length>0,true,'Gues
 assert.equal((await call('admin/lessons',{headers:{...teacher,'oai-authenticated-user-email':'student@test'}})).status,403);
 assert.equal((await call('admin/lessons',{method:'POST',body:upload(),headers:{...teacher,origin:'https://attacker.test'}})).status,403);
 let result=await call('admin/lessons',{method:'POST',body:upload()});assert.equal(result.status,201);let lesson=result.data;
-assert.equal(lesson.title,'Knives Out');assert.equal(lesson.shared,0);assert.equal('file_key' in lesson,false);assert.equal(objects.size,1);
+assert.equal(lesson.title,'Lantern Road');assert.equal(lesson.shared,0);assert.equal('file_key' in lesson,false);assert.equal(objects.size,1);
 assert.equal((await call('admin/lessons')).data.lessons.length,1);
 assert.deepEqual((await call(`admin/lessons/${lesson.id}/file`,{raw:true})).data,new Uint8Array(Buffer.from(referenceScore,'base64')));
 assert.equal((await call(`admin/lessons/${lesson.id}`,{headers:{...teacher,'oai-authenticated-user-id':'other-id'}})).status,404);
@@ -43,22 +43,22 @@ lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{}})).
 const shared=(await call(`shared/${token}`,{headers:{}}));assert.equal(shared.status,200);assert.equal('notes' in shared.data,false,'Retired teacher notes must not leak through sharing');assert.equal('id' in shared.data,false);assert.equal('share_token' in shared.data,false);
 // Students use the same exact-match artwork lookup, gated by the active token.
 const originalFetch=globalThis.fetch;let catalogCalls=0;
-globalThis.fetch=async url=>{catalogCalls++;return Response.json({results:new URL(url).pathname==='/search'?[{kind:'song',trackName:'Knives Out',artistName:'Radiohead',collectionId:1}]:[{collectionId:1,collectionType:'Album',artistName:'Radiohead',collectionName:'Amnesiac',releaseDate:'2001-06-04',artworkUrl100:'https://is1-ssl.mzstatic.com/image/thumb/Music/cover.jpg/100x100bb.jpg'}]});};
+globalThis.fetch=async url=>{catalogCalls++;return Response.json({results:new URL(url).pathname==='/search'?[{kind:'song',trackName:'Lantern Road',artistName:'Fretlark',collectionId:1}]:[{collectionId:1,collectionType:'Album',artistName:'Fretlark',collectionName:'Paper Lanterns',releaseDate:'2001-06-04',artworkUrl100:'https://is1-ssl.mzstatic.com/image/thumb/Music/cover.jpg/100x100bb.jpg'}]});};
 try{
  const cover=await call(`shared/${token}/artwork`,{headers:{}});
- assert.equal(cover.status,200);assert.equal(cover.data.artwork.album,'Amnesiac');assert.equal(cover.data.title,'Knives Out');assert.equal(cover.data.artist,'Radiohead');assert.equal(catalogCalls,2);
+ assert.equal(cover.status,200);assert.equal(cover.data.artwork.album,'Paper Lanterns');assert.equal(cover.data.title,'Lantern Road');assert.equal(cover.data.artist,'Fretlark');assert.equal(catalogCalls,2);
  const invalid=await call('shared/'+'0'.repeat(64)+'/artwork',{headers:{}});assert.equal(invalid.status,404);assert.equal(catalogCalls,2,'Invalid token cannot query artwork catalog');
  assert.equal((await call(`shared/${token}/artwork`,{method:'POST',body:{},headers:{}})).status,405);
  globalThis.fetch=async()=>{throw Error('Catalog offline');};
  assert.equal((await call(`shared/${token}/artwork`,{headers:{}})).status,503,'Temporary catalog errors remain retryable through API');
  assert.equal((await call(`admin/lessons/${lesson.id}/artwork`)).status,503);
- assert.equal((await call('admin/artwork?title=Neon&artist=John%20Mayer')).status,503);
+ assert.equal((await call('admin/artwork?title=Lantern%20Road&artist=Fretlark')).status,503);
 }finally{globalThis.fetch=originalFetch;}
 assert.equal((await call(`shared/${token}`,{headers:{},method:'POST',body:{title:'Hacked'}})).status,405);
 assert.equal((await call('admin/stats')).status,404,'Open tracking was removed');
 assert.equal((await call(`shared/${token}/file`,{headers:{},raw:true})).data.length,Buffer.from(referenceScore,'base64').length);
 assert.equal((await call(`admin/lessons/${lesson.id}`,{method:'PATCH',body:{version:1,title:'Stale'}})).status,409);
-lesson=(await call(`admin/lessons/${lesson.id}`,{method:'PATCH',body:{version:lesson.version,title:'Chorus practice',artist:'Radiohead',notes:'Start slowly.'}})).data;
+lesson=(await call(`admin/lessons/${lesson.id}`,{method:'PATCH',body:{version:lesson.version,title:'Chorus practice',artist:'Fretlark',notes:'Start slowly.'}})).data;
 assert.equal((await call(`shared/${token}`,{headers:{}})).data.title,'Chorus practice');
 lesson=(await call(`admin/lessons/${lesson.id}/file`,{method:'PUT',body:upload(lesson.version,'Updated score')})).data;
 assert.equal(lesson.share_token,token);assert.equal(objects.size,1);assert.equal(lesson.notes,'Start slowly.');
@@ -291,10 +291,12 @@ const {totp}=await import('./lib/two-factor.mjs');
 env.MFA_ENCRYPTION_KEY=Buffer.alloc(32,9).toString('base64');
 sql.prepare('DELETE FROM auth_limits').run();
 const mfaPassword='authenticator strong password';
-// Usernames and recovery keys replace email: the key is shown once at signup and resets a forgotten password.
+// Usernames and recovery keys replace email: a key is created from Settings and resets a forgotten password.
 const badName=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.60'},body:{email:'not a name@x.y',password:'long enough password'}});assert.equal(badName.status,400);
 const rk=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.61'},body:{username:'Rec.Test',password:'long enough password'}});
-assert.equal(rk.status,200);assert.match(rk.data.recovery_key,/^[A-Z2-9]{5}(-[A-Z2-9]{5}){3}$/);assert.equal(rk.data.email,'rec.test');
+assert.equal(rk.status,200);assert.equal(rk.data.recovery_key,undefined,'Sign-up never forces a recovery key');assert.equal(rk.data.email,'rec.test');
+rk.data.recovery_key=(await call('auth/recovery-key',{method:'POST',headers:{cookie:rk.cookie.split(';')[0]},body:{current_password:'long enough password'}})).data.recovery_key;
+assert.match(rk.data.recovery_key,/^[A-Z2-9]{5}(-[A-Z2-9]{5}){3}$/);
 assert.equal((await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.61'},body:{username:'rec.test',password:'long enough password'}})).data.error,'That username is taken.');
 const recHeaders={'cf-connecting-ip':'192.0.2.62'};
 assert.equal((await call('auth/reset',{method:'POST',headers:recHeaders,body:{username:'rec.test',recovery_key:'AAAAA-AAAAA-AAAAA-AAAAA',new_password:'a brand new password'}})).status,401);

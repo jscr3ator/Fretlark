@@ -34,7 +34,8 @@
   let resetToken = params.get('reset');
   const verifyToken = params.get('verify');
   if (resetToken) removeQueryParam('reset');
-  const sessionState = {mailEnabled: false, contactEmail: null, contactEmailAddress: null, contactEmailVerified: false};
+  const sessionState = {mailEnabled: false, contactEmail: null, contactEmailAddress: null, contactEmailVerified: false, hasRecoveryKey: null};
+  const bannerDismissKeys = {recovery: 'fretlark-banner-recovery-dismissed', email: 'fretlark-banner-email-dismissed'};
   let emailBannerError = '';
   let accountControls;
   let uploading = false;
@@ -75,7 +76,8 @@
     sessionState.contactEmail = session.contactEmail || null;
     sessionState.contactEmailAddress = session.contactEmailAddress || null;
     sessionState.contactEmailVerified = session.contactEmailVerified === true;
-    renderEmailBanner();
+    sessionState.hasRecoveryKey = typeof session.hasRecoveryKey === 'boolean' ? session.hasRecoveryKey : null;
+    renderAccountBanners();
     return session;
   }
 
@@ -83,17 +85,31 @@
     return readSession(await api('session'));
   }
 
-  function renderEmailBanner() {
-    const banner = $('email-banner');
+  function bannerDismissed(kind) {
+    try { return sessionStorage.getItem(bannerDismissKeys[kind]) === '1'; } catch { return false; }
+  }
+
+  function dismissBanner(kind) {
+    try { sessionStorage.setItem(bannerDismissKeys[kind], '1'); } catch { /* Browsing may block session storage. */ }
+    renderAccountBanners();
+  }
+
+  function renderAccountBanners() {
+    const stack = $('banner-stack');
+    const signedIn = !$('workspace').hidden;
     const address = sessionState.contactEmailAddress || sessionState.contactEmail;
-    const show = !$('workspace').hidden && Boolean(address) && !sessionState.contactEmailVerified;
-    banner.hidden = !show;
-    banner.classList.toggle('error', show && Boolean(emailBannerError));
-    if (!show) {
-      if (!address || sessionState.contactEmailVerified) emailBannerError = '';
-      return;
-    }
-    $('email-banner-text').textContent = emailBannerError || `Confirm your email: we sent a link to ${address}.`;
+    // An unconfirmed email always wins, even after its banner is dismissed: never show both.
+    const emailEligible = signedIn && Boolean(address) && !sessionState.contactEmailVerified;
+    const showEmail = emailEligible && !bannerDismissed('email');
+    const showRecovery = signedIn && !emailEligible && sessionState.hasRecoveryKey === false && !sessionState.contactEmailVerified && !bannerDismissed('recovery');
+
+    $('email-banner').hidden = !showEmail;
+    $('email-banner').classList.toggle('error', showEmail && Boolean(emailBannerError));
+    if (!emailEligible) emailBannerError = '';
+    if (showEmail) $('email-banner-text').textContent = emailBannerError || `Confirm your email: we sent a link to ${address}.`;
+
+    $('recovery-banner').hidden = !showRecovery;
+    stack.hidden = !(showEmail || showRecovery);
   }
 
   async function resendEmailConfirmation() {
@@ -109,7 +125,7 @@
     } catch (error) {
       if (error.name !== 'AbortError') {
         emailBannerError = error.message || 'The confirmation email could not be sent. Try again.';
-        renderEmailBanner();
+        renderAccountBanners();
       }
     } finally {
       button.disabled = false; button.textContent = 'Resend';
@@ -130,7 +146,7 @@
       try { await refreshSession(); } catch { /* The next init will retry. */ }
       if (sessionState.contactEmail && !sessionState.contactEmailVerified) {
         emailBannerError = message;
-        renderEmailBanner();
+        renderAccountBanners();
       }
       toast(message, true);
     }
@@ -163,8 +179,8 @@
   const authButtons = {login: 'Sign in', register: 'Create account', forgot: 'Reset password', reset: 'Set new password'};
   const authCopy = {
     register: "Create your account with an email and password. We'll send you a link to confirm your email.",
-    registerNoMail: 'Pick a username. You will get a recovery key to reset your password if you forget it.',
-    forgot: 'Enter your username and the recovery key you saved when you signed up.',
+    registerNoMail: 'Pick a username and a password. You can create a recovery key later in Settings.',
+    forgot: 'Enter your username and the recovery key you saved from Settings.',
     forgotEmail: "Enter your email and we'll send you a reset link.",
     reset: 'Choose a new password. Every device will need to sign in again.'
   };
@@ -273,7 +289,16 @@
   }
 
   function wireDialogs() {
+    const focusable = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
     for (const dialog of document.querySelectorAll('dialog')) {
+      dialog.addEventListener('keydown', event => {
+        if (event.key !== 'Tab') return;
+        const items = [...dialog.querySelectorAll(focusable)].filter(element => element.getClientRects().length);
+        if (!items.length) return;
+        const first = items[0], last = items.at(-1), active = document.activeElement;
+        if (event.shiftKey && (active === first || !dialog.contains(active))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (active === last || !dialog.contains(active))) { event.preventDefault(); first.focus(); }
+      });
       dialog.addEventListener('close', () => {
         if (dialog.id === 'share-dialog') shareTrackRequest++;
         if (dialog.id === 'student-preview-dialog') $('student-preview-frame').removeAttribute('src');
@@ -317,7 +342,7 @@
     return song && {...localCoverSource(song), local_id: song.id, track_count: song.tracks, bar_count: song.bars, tempo: song.tempo, updated_at: song.updatedAt};
   }
   function coverHtml(lesson, className) {
-    return `<span class="${className} cover" style="${coverStyle(lesson)}" data-cover-id="${esc(lesson.id)}" data-cover-key="${esc(JSON.stringify([lesson.id, lesson.title, lesson.artist]))}"><span class="cover-monogram">${monogram(lesson)}</span><img src="/admin-assets/doc.svg" alt=""></span>`;
+    return `<span class="${className} cover" style="${coverStyle(lesson)}" data-cover-id="${esc(lesson.id)}" data-cover-key="${esc(JSON.stringify([lesson.id, lesson.title, lesson.artist]))}"><span class="cover-monogram">${monogram(lesson)}</span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></span>`;
   }
 
   // Plain-language summary of what a shared link lets students see and use.
@@ -337,7 +362,7 @@
     if (latest) {
       const tracks = Number(latest.track_count) || 0, bars = Number(latest.bar_count) || 0, tempo = Number(latest.tempo) || 0;
       const others = recent.slice(1, 6);
-      $('resume').innerHTML = `<div class="resume-main">${coverHtml(latest, 'resume-cover')}<div class="resume-copy"><p class="eyebrow" id="resume-title">Last edited ${esc(ago(latest.updated_at))}</p><h2>${esc(latest.title || 'Untitled song')}</h2><p class="resume-artist">${esc(latest.artist || latest.file_name || '')}</p><p class="resume-meta">${plural(tracks, 'track')} · ${plural(bars, 'bar')}${tempo ? ` · ${tempo} BPM` : ''}</p><div class="resume-actions"><a class="button primary" href="/editor/index.html?lesson=${encodeURIComponent(latest.id)}"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a><button class="button" type="button" data-share-song="${esc(latest.id)}"><svg class="icon"><use href="#i-share"/></svg>Share</button><button class="button" type="button" data-open-song="${esc(latest.id)}">View Song</button></div></div></div>${others.length ? `<div class="resume-recent"><p class="eyebrow">Recent</p><ul>${others.map(lesson => `<li><button class="recent-row" type="button" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'recent-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${lesson.shared ? 'Shared · ' : ''}${esc(ago(lesson.updated_at))}</small></span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button></li>`).join('')}</ul></div>` : ''}`;
+      $('resume').innerHTML = `<div class="resume-main">${coverHtml(latest, 'resume-cover')}<div class="resume-copy"><p class="eyebrow" id="resume-title">Last edited ${esc(ago(latest.updated_at))}</p><h2>${esc(latest.title || 'Untitled song')}</h2><p class="resume-artist">${esc(latest.artist || latest.file_name || '')}</p><p class="resume-meta">${plural(tracks, 'track')} · ${plural(bars, 'bar')}${tempo ? ` · ${tempo} BPM` : ''}</p><div class="resume-actions"><a class="button primary" href="/editor/index.html?lesson=${encodeURIComponent(latest.id)}"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a><button class="button" type="button" data-share-song="${esc(latest.id)}"><svg class="icon"><use href="#i-share"/></svg>Share</button><button class="button" type="button" data-open-song="${esc(latest.id)}">View Song</button></div></div></div>${others.length ? `<div class="resume-recent"><p class="eyebrow">Recent</p><ul>${others.map(lesson => `<li><div class="recent-row" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'recent-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${lesson.shared ? 'Shared · ' : ''}${esc(ago(lesson.updated_at))}</small></span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></div></li>`).join('')}</ul></div>` : ''}`;
     } else {
       $('resume').innerHTML = `<div class="resume-main"><div class="resume-copy"><h2 id="resume-title">Upload your first song</h2><p class="resume-artist">Or start a new one from scratch.</p><div class="resume-actions"><button class="button primary" type="button" data-upload-open><svg class="icon"><use href="#i-upload"/></svg>Upload Files</button><a class="button" href="/editor/index.html?new=1"><svg class="icon"><use href="#i-plus"/></svg>New Song</a></div></div></div>`;
       $('resume').querySelector('[data-upload-open]').addEventListener('click', openUpload);
@@ -346,7 +371,7 @@
     const shared = lessons.filter(lesson => lesson.shared).sort((a, b) => String(a.title).localeCompare(String(b.title)));
     $('link-table').innerHTML = shared.length ? shared.slice(0, 8).map(lesson => {
       const access = accessSummary(lesson);
-      return `<div class="link-row"><button class="link-song" type="button" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></button><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
+      return `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></div><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
     }).join('') + (shared.length > 8 ? `<button class="text-button more-links" type="button" data-goto-filter="shared">${shared.length - 8} more shared songs</button>` : '')
       : '<p class="panel-empty">Nothing shared yet.</p>';
     renderLocalSongs();
@@ -357,8 +382,11 @@
   function renderLocalSongs() {
     const songs = window.LocalSongs ? window.LocalSongs.list(localOwner) : [];
     $('local-panel').hidden = !songs.length;
-    $('local-songs').innerHTML = songs.map(song => `<div class="link-row"><button class="link-song" type="button" data-open-song="local:${esc(song.id)}">${coverHtml(localCoverSource(song), 'link-cover')}<span><strong>${esc(song.title || 'Untitled song')}</strong><small>${esc([song.artist, `${song.bars || 0} bars`, `edited ${ago(song.updatedAt)}`].filter(Boolean).join(' · '))}</small></span></button><div class="local-actions"><button class="button" type="button" data-local-cloud="${esc(song.id)}" ${localCloudSaves.has(song.id)?'disabled':''}>${localCloudSaves.has(song.id)?'Saving…':'Save to cloud'}</button><a class="button" href="/editor/index.html?local=${encodeURIComponent(song.id)}">Edit</a><button class="icon-button" type="button" data-local-remove="${esc(song.id)}" aria-label="Remove ${esc(song.title || 'song')} from this browser"><svg class="icon"><use href="#i-trash"/></svg></button></div></div>`).join('');
+    $('local-songs').innerHTML = songs.map(song => `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="local:${esc(song.id)}">${coverHtml(localCoverSource(song), 'link-cover')}<span><strong>${esc(song.title || 'Untitled song')}</strong><small>${esc([song.artist, `${song.bars || 0} bars`, `edited ${ago(song.updatedAt)}`].filter(Boolean).join(' · '))}</small></span></div><div class="local-actions"><button class="button" type="button" data-local-cloud="${esc(song.id)}" ${localCloudSaves.has(song.id)?'disabled':''}>${localCloudSaves.has(song.id)?'Saving…':'Save to cloud'}</button><a class="button" href="/editor/index.html?local=${encodeURIComponent(song.id)}">Edit</a><button class="icon-button" type="button" data-local-remove="${esc(song.id)}" aria-label="Remove ${esc(song.title || 'song')} from this browser"><svg class="icon"><use href="#i-trash"/></svg></button></div></div>`).join('');
   }
+  document.addEventListener('click', event => {
+    if (event.target.closest('.cover-credit')) event.stopPropagation();
+  }, true);
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-local-remove]');
     if (!button || !window.LocalSongs) return;
@@ -399,16 +427,28 @@
     document.querySelectorAll('[data-cover-key]').forEach(node=>coverObserver.observe(node));
     if($('selected-cover').dataset.coverKey)queueCover($('selected-cover'));
   });
+  function coverCreditUrl(value){
+    try{const url=new URL(value);return url.protocol==='https:'&&['music.apple.com','deezer.com','www.deezer.com'].includes(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:null;}catch{return null;}
+  }
+  function hideCoverCredit(node){
+    const credit=node?.querySelector?.('.cover-credit');if(credit)credit.hidden=true;
+  }
+  function showCoverCredit(node,artwork){
+    const credit=node?.querySelector?.('.cover-credit');if(!credit)return;
+    const url=coverCreditUrl(artwork?.sourceUrl),label=artwork?.source==='Deezer'?'Deezer':artwork?.source==='Apple Music'?'Apple Music':null;
+    if(!url||!label){credit.hidden=true;return;}
+    credit.href=url;credit.textContent=label;credit.dataset.source=label;credit.setAttribute('aria-label',`Album art: ${label}`);credit.hidden=false;
+  }
   function applyCover(node,artwork){
     if(!artwork)return;
     const image=node.querySelector('img');if(!image)return;
     const key=node.dataset.coverKey;
     let fallback;try{const url=new URL(artwork.fallbackUrl);if(url.protocol==='https:'&&/^(?:is\d+-ssl\.mzstatic\.com|(?:e-cdns|cdn)-images\.dzcdn\.net)$/.test(url.hostname)&&!url.port&&!url.username&&!url.password&&url.href!==artwork.url)fallback=url.href;}catch{}
-    image.onload=()=>{if(node.dataset.coverKey===key)node.classList.add('has-cover');};
+    image.onload=()=>{if(node.dataset.coverKey===key){node.classList.add('has-cover');showCoverCredit(node,artwork);}};
     image.onerror=()=>{
       if(node.dataset.coverKey!==key)return;
       if(fallback){const url=fallback;fallback=null;image.src=url;return;}
-      image.onload=null;image.onerror=null;node.classList.remove('has-cover');image.src='/admin-assets/doc.svg';node.removeAttribute('title');retryCover(key);
+      image.onload=null;image.onerror=null;node.classList.remove('has-cover');hideCoverCredit(node);image.src='/admin-assets/doc.svg';node.removeAttribute('title');retryCover(key);
     };
     image.referrerPolicy='no-referrer';image.decoding='async';image.alt='';image.src=artwork.url;
     node.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;
@@ -457,6 +497,7 @@
       image.onerror = null;
       node.removeAttribute('title');
       node.classList.remove('has-cover');
+      if (typeof hideCoverCredit === 'function') hideCoverCredit(node);
       image.src = '/admin-assets/doc.svg';
     }
     node.dataset.coverId = lesson.id;
@@ -490,18 +531,18 @@
       const artist = esc(lesson.artist || lesson.file_name || 'GP file');
       const tracks = Number(lesson.track_count) || 0;
       const active = lesson.id === librarySelectedId;
-      return `<button class="lesson-row${active ? ' selected' : ''}" type="button" data-id="${esc(lesson.id)}" aria-pressed="${active}">
+      return `<div class="lesson-row${active ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(lesson.id)}" aria-pressed="${active}">
         ${coverHtml(lesson, 'song-mark')}
         <span class="song-copy"><strong class="song-title">${title}</strong><span class="song-artist">${artist}</span></span>
         <span class="song-meta">${lesson.shared ? '<svg class="icon shared-icon" role="img" aria-label="Shared"><use href="#i-link"/></svg>' : ''}${tracks} ${tracks === 1 ? 'track' : 'tracks'}</span>
         <svg class="icon row-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-      </button>`;
-    }).join('') + localShown.map(song => `<button class="lesson-row local-row${librarySelectedId === `local:${song.id}` ? ' selected' : ''}" type="button" data-id="local:${esc(song.id)}" aria-pressed="${librarySelectedId === `local:${song.id}`}">
+      </div>`;
+    }).join('') + localShown.map(song => `<div class="lesson-row local-row${librarySelectedId === `local:${song.id}` ? ' selected' : ''}" role="button" tabindex="0" data-id="local:${esc(song.id)}" aria-pressed="${librarySelectedId === `local:${song.id}`}">
         ${coverHtml(localCoverSource(song), 'song-mark')}
         <span class="song-copy"><strong class="song-title">${esc(song.title || 'Untitled song')}</strong><span class="song-artist">${esc(song.artist || '')}</span></span>
         <span class="song-meta"><svg class="icon shared-icon" role="img" aria-label="On this device"><use href="#i-device"/></svg>On this device</span>
         <svg class="icon row-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
-      </button>`).join('');
+      </div>`).join('');
     const counts = {all: lessons.length + localAll.length, shared: lessons.filter(lesson => lesson.shared).length};
     counts.private = counts.all - counts.shared;
     document.querySelectorAll('[data-count]').forEach(node => { node.textContent = counts[node.dataset.count] || ''; });
@@ -541,6 +582,7 @@
       image.onerror = null;
       cover.removeAttribute('title');
       cover.classList.remove('has-cover');
+      if (typeof hideCoverCredit === 'function') hideCoverCredit(cover);
       image.src = '/admin-assets/doc.svg';
       const content = $('song-content');
       content.classList.remove('is-entering');
@@ -602,7 +644,6 @@
       registrationOpen = session.registrationOpen === true;
       forgotMethod = session.mailEnabled === true ? forgotMethod : 'recovery';
       $('username-current').textContent = session.email ? `Currently ${session.email}.` : 'Shown on your account.';
-      $('recovery-banner').hidden = !(session.authType === 'password' && session.hasRecoveryKey === false);
       $('manage-users').hidden = session.owner !== true;
       $('auth-switch').hidden = !registrationOpen;
       const passwordAccount = session.admin && session.authType === 'password';
@@ -637,7 +678,7 @@
 
       $('workspace').hidden = false;
       $('library').hidden = false;
-      renderEmailBanner();
+      renderAccountBanners();
       const result = await api('admin/lessons');
       lessons = Array.isArray(result.lessons) ? result.lessons : [];
       if (!librarySong(librarySelectedId)) librarySelectedId = lessons[0]?.id || null;
@@ -755,6 +796,10 @@
       status('auth-status', 'Use a password between 12 and 1024 characters.', true);
       return;
     }
+    if (authMode === 'register' && password !== $('auth-password2').value) {
+      status('auth-status', 'The passwords do not match.', true);
+      return;
+    }
 
     const submit = $('auth-submit');
     submit.disabled = true;
@@ -771,8 +816,7 @@
         $('access-title').textContent='Two-factor authentication';$('access-message').textContent='Enter a code to finish signing in.';status('auth-factor-status','');$('auth-factor-code').focus();return;
       }
       $('auth-password').value = '';
-      if (authMode === 'register' && sessionState.mailEnabled && result.recovery_key && !result.skip_recovery_prompt) emailBannerError = 'The confirmation email could not be sent. Try again.';
-      if (result.recovery_key && !result.skip_recovery_prompt) await showRecoveryKey(result.recovery_key);
+      if (authMode === 'register' && result.email_sent === false) emailBannerError = 'The confirmation email could not be sent. Try again.';
       if (nextPath) { location.replace(nextPath); return; }
       await init();
     } catch (error) {
@@ -831,6 +875,7 @@
     renderPlan(usage);
   }
 
+  // Paid plans are not offered yet; the storage meter only reflects the current account.
   function renderPlan(usage) {
     if (!usage.plan) return;
     $('plan-card').hidden = false;
@@ -1354,6 +1399,7 @@
 
   $('auth-form').addEventListener('submit', submitAuth);
   $('email-banner-resend').addEventListener('click', resendEmailConfirmation);
+  document.querySelectorAll('[data-banner-dismiss]').forEach(button => button.addEventListener('click', () => dismissBanner(button.dataset.bannerDismiss)));
   $('forgot-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'email'); $('auth-email').value = email; $('auth-email').focus(); });
   $('forgot-recovery-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'recovery'); $('auth-email').value = email; $('auth-email').focus(); });
   $('reset-back').addEventListener('click', () => { resetToken = null; setAuthMode('forgot', 'email'); $('auth-email').focus(); });
@@ -1373,7 +1419,8 @@
     event.preventDefault(); const submit = $('recovery-submit'); submit.disabled = true; status('recovery-status', '');
     try {
       const result = await api('auth/recovery-key', json('POST', {current_password: $('recovery-password').value}));
-      closeDialog('recovery-dialog'); $('recovery-banner').hidden = true;
+      sessionState.hasRecoveryKey = true;
+      closeDialog('recovery-dialog'); renderAccountBanners();
       await showRecoveryKey(result.recovery_key, 'Your new recovery key');
     } catch (error) { status('recovery-status', error.message || 'Could not create a key.', true); }
     finally { submit.disabled = false; }
@@ -1437,6 +1484,13 @@
     if(input.matches('input, select'))saveShareSettings();
   });
   $('search').addEventListener('input', render);
+  $('overview').addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest?.('[data-open-song], [data-copy-link], [data-share-song]');
+    if (!target || event.target.closest('a,button,input,select,textarea')) return;
+    event.preventDefault();
+    target.click();
+  });
   $('overview').addEventListener('click', event => {
     const target = event.target.closest('[data-copy-link], [data-share-song], [data-open-song], [data-goto-filter]');
     if (!target) return;
@@ -1481,6 +1535,11 @@
     }
   });
   $('lesson-list').addEventListener('keydown', event => {
+    if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.lesson-row')) {
+      event.preventDefault();
+      onLessonAction(event);
+      return;
+    }
     if (event.key !== 'Delete' && event.key !== 'Backspace') return;
     const row = event.target.closest('[data-id]');
     const lesson = row && lessons.find(item => item.id === row.dataset.id);

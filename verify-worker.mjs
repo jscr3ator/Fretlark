@@ -36,3 +36,4 @@ runInNewContext(autosave+';markDirty();',context);
 assert.equal(savedTitle('fretline-draft:bob@example.test'),'Private B');
 assert.match(readFileSync('public/_headers','utf8'),/frame-ancestors 'self'/);
 console.log('PASS: account-scoped tab autosave, no student autosave, static framing policy.');
+await import('./verify-account-ui.mjs');

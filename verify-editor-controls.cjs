@@ -238,7 +238,7 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
     openedDocuments:[{}, {json:'B',title:'B',dirty:true,selected:{track:0},activeTrack:0,currentString:1,displayed:[0],remoteLesson:null}],
     M:{snapshot:score=>score.title, restore:json=>({title:json})},
     sessionStorage:{setItem(key,value){if(failure)throw Error('quota');storage.set(key,value);}},
-    status(message){warning=message;}, toast() {},
+    status(message){warning=message;}, toast() {}, clearRange() {}, $:()=>null,
   });
   vm.runInContext(editor.slice(editor.indexOf('  function rememberDocument()'),editor.indexOf('  function renderDocumentTabs()')),context);
   context.saveDraft();
@@ -285,7 +285,7 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   const otherLesson = {id: 'other'};
   const context = vm.createContext({
     isViewer: false, score: source, dirty: true, loading: false, cloudSaving: false, documentIndex: 0,
-    openedDocuments: [sourceDoc, {json: 'other', dirty: false, remoteLesson: otherLesson}], remoteLesson: null,
+    openedDocuments: [sourceDoc, {json: 'other', dirty: false, remoteLesson: otherLesson}], remoteLesson: null, localId: null,
     M: {snapshot: value => value.snapshot}, exportGpBytes: () => new Uint8Array([1]), Blob,
     $: () => ({disabled: false, textContent: ''}),
     cloudApi: () => new Promise(resolve => { finishRequest = () => resolve({json: async () => lesson}); }),
@@ -315,7 +315,7 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   const sourceDoc = {json: 'before', dirty: true, remoteLesson: null};
   const context = vm.createContext({
     isViewer: false, score: source, dirty: true, loading: false, cloudSaving: false, documentIndex: 0,
-    openedDocuments: [sourceDoc], remoteLesson: null,
+    openedDocuments: [sourceDoc], remoteLesson: null, localId: null,
     M: {snapshot: value => value.snapshot}, exportGpBytes: () => new Uint8Array([1]), Blob,
     $: () => ({disabled: false, textContent: ''}),
     cloudApi: async () => ({json: async () => lesson}),
@@ -332,6 +332,146 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   assert.equal(context.dirty, true, 'Edits made while cloud save waits remain unsaved');
   assert.equal(context.remoteLesson, lesson, 'Created lesson becomes target for next save');
   assert.match(currentUrl, /\?lesson=saved&mute=1$/);
+}
+
+// A cloud save keeps the device copy when newer edits arrive, and only cleans up an unchanged one.
+{
+  const runSave = async editDuring => {
+    const lesson = {id: 'saved', student_settings: {allowed_tracks: null}};
+    let release;
+    const source = {snapshot: 'before', title: 'Song', artist: '', tempo: 120, tracks: [{}], masterBars: [{}]};
+    const sourceDoc = {json: 'before', dirty: true, remoteLesson: null, localId: 'device'};
+    const badge = {textContent: ''}, removed = [], elements = new Map();
+    const element = id => {
+      if (!elements.has(id)) elements.set(id, {disabled: false, textContent: '', classList: {toggle() {}}});
+      return elements.get(id);
+    };
+    const context = vm.createContext({
+      isViewer: false, score: source, dirty: true, loading: false, cloudSaving: false, documentIndex: 0,
+      openedDocuments: [sourceDoc], remoteLesson: null, localId: 'device', localOwner: 'owner', guest: false,
+      M: {snapshot: value => value.snapshot}, exportGpBytes: () => new Uint8Array([1]), Blob,
+      $: id => id === 'lesson-badge' ? badge : element(id),
+      cloudApi: () => new Promise(resolve => { release = () => resolve({json: async () => lesson}); }),
+      rememberDocument() {}, saveDraft() {}, syncInspector() {}, renderDocumentTabs() {}, toast() {},
+      location: {href: 'https://local.test/editor'}, URL,
+      window: {LocalSongs: {remove(...args) { removed.push(args); }}, history: {replaceState() {}}},
+      query: new URLSearchParams('?mute=1'), diagnosticSilent: false,
+    });
+    vm.runInContext(editor.slice(editor.indexOf('  async function saveCloud(){'), editor.indexOf("  listen('btn-cloud-save'")), context);
+    const pending = context.saveCloud();
+    if (editDuring) { context.score = {...source, snapshot: 'after-edit'}; context.dirty = true; }
+    release(); await pending;
+    return {context, badge, removed};
+  };
+  const kept = await runSave(true);
+  assert.equal(kept.removed.length, 0, 'Newer edits keep the device copy');
+  assert.equal(kept.context.localId, 'device', 'Device copy id survives a save of an older snapshot');
+  assert.equal(kept.context.dirty, true, 'Newer edits still need another cloud save');
+  assert.notEqual(kept.badge.textContent, 'Saved to cloud', 'Badge cannot claim newer edits are in the cloud');
+  const moved = await runSave(false);
+  assert.equal(moved.removed.length, 1, 'An unchanged move to cloud removes the device copy');
+  assert.equal(moved.context.localId, null);
+  assert.equal(moved.context.dirty, false);
+}
+
+// A device autosave cannot hide a still-pending cloud update.
+{
+  const badge = {textContent: ''}, written = [];
+  const make = (remoteLesson, cloudSaving) => {
+    const context = vm.createContext({
+      localId: 'device', localOwner: 'owner', score: {title: 'Song', tracks: [{}], masterBars: [{}]}, dirty: true, documentIndex: 0,
+      openedDocuments: [{dirty: true}], remoteLesson, cloudSaving,
+      window: {LocalSongs: {put(owner, song) { written.push([owner, song]); }}},
+      M: {snapshot: () => 'json'}, txt() {}, renderDocumentTabs() {}, $: () => badge, toast() {},
+    });
+    vm.runInContext(editor.slice(editor.indexOf('  function saveLocalSong('), editor.indexOf('  // Songs kept on this device')), context);
+    context.saveLocalSong();
+    return context;
+  };
+  const localOnly = make(null, false);
+  assert.equal(localOnly.dirty, false, 'A device-only song is clean once autosaved');
+  assert.equal(localOnly.openedDocuments[0].dirty, false);
+  const cloudStale = make({id: 'lesson'}, false);
+  assert.equal(cloudStale.dirty, true, 'A device copy of a cloud song keeps the cloud update pending');
+  const saving = make(null, true);
+  assert.equal(saving.dirty, true, 'An autosave during a cloud upload keeps the cloud update pending');
+  assert.equal(written.length, 3);
+}
+
+// Leaving does not warn when the synchronous last-chance save made the device copy current.
+{
+  let handler, saved = 0;
+  const context = vm.createContext({
+    isViewer: false, documentIndex: 0, openedDocuments: [{}], dirty: true, saveTimer: 1,
+    clearTimeout() {}, saveDraft() { saved++; if (context.clearDirty) context.dirty = false; },
+    window: {addEventListener(type, fn) { if (type === 'beforeunload') handler = fn; }},
+  });
+  vm.runInContext(editor.split('\n').find(line => line.includes("addEventListener('beforeunload'")), context);
+  const leave = () => { const event = {returnValue: '', preventDefault() { event.prevented = true; }}; handler(event); return event; };
+  context.clearDirty = true;
+  assert.equal(leave().prevented, undefined, 'An autosaved local song does not warn on leave');
+  assert.equal(saved, 1);
+  context.dirty = true; context.clearDirty = false;
+  assert.equal(leave().prevented, true, 'A still-unsaved cloud song warns on leave');
+}
+
+// Document replacement clears the old measure range, detaches device songs and refreshes the badge.
+{
+  const importBody = editor.slice(editor.indexOf('  async function importBytes('), editor.indexOf('  async function openFile('));
+  const newScoreLine = editor.split('\n').find(line => line.includes('function newScore('));
+  const switchLine = editor.split('\n').find(line => line.includes('function switchDocument('));
+  const restoreBody = editor.slice(editor.indexOf('  function restoreDraft('), editor.indexOf('  function renderDocumentTabs()'));
+  assert.match(importBody, /clearRange\(\)/, 'Opening a file clears the previous measure range');
+  assert.match(newScoreLine, /clearRange\(\)/, 'A new song clears the previous measure range');
+  assert.match(switchLine, /clearRange\(\)/, 'Switching documents clears the previous measure range');
+  assert.match(restoreBody, /clearRange\(\)/, 'Restoring a workspace clears the previous measure range');
+  assert.match(importBody, /remoteLesson=null;localId=null/, 'Opening a file detaches the previous device song');
+  for (const [label, body] of [['import', importBody], ['new', newScoreLine], ['switch', switchLine], ['restore', restoreBody]])
+    assert.match(body, /syncDocumentBadge\(\)/, label + ' refreshes the document badge');
+  const badge = {textContent: ''};
+  const context = vm.createContext({isViewer: false, remoteLesson: null, localId: null, guest: false, $: () => badge});
+  vm.runInContext(editor.slice(editor.indexOf('  function syncDocumentBadge('), editor.indexOf('  function saveDraft()')), context);
+  context.syncDocumentBadge(); assert.equal(badge.textContent, 'Tab editor');
+  context.localId = 'device'; context.syncDocumentBadge(); assert.equal(badge.textContent, 'On this device');
+  context.remoteLesson = {id: 'lesson'}; context.syncDocumentBadge(); assert.equal(badge.textContent, 'Library song');
+  context.remoteLesson = null; context.localId = null; context.guest = true; context.syncDocumentBadge(); assert.equal(badge.textContent, 'On this device');
+}
+
+// Player pages without ?preview are still read-only and receive the lesson's student settings.
+{
+  const line = editor.split('\n').find(item => item.includes("const query=new URLSearchParams"));
+  const isViewerFor = (search, playerPage) => {
+    const context = vm.createContext({URLSearchParams, location: {search, pathname: playerPage ? '/editor/player.html' : '/editor/index.html'}});
+    return vm.runInContext(line + '\nisViewer', context);
+  };
+  assert.equal(isViewerFor('?lesson=abc', true), true, 'Player page with a lesson uses viewer controls');
+  assert.equal(isViewerFor('?lesson=abc&preview=1', true), true);
+  assert.equal(isViewerFor('?share=abc', true), true);
+  assert.equal(isViewerFor('?lesson=abc', false), false, 'Editor lesson remains editable');
+  assert.equal(isViewerFor('', true), false, 'Bare player template keeps the editor demo');
+}
+
+// Handled import failures stay out of the console; the toast is the user-facing report.
+{
+  const at = require('./public/editor/vendor/alphaTab.js');
+  const previous = at.Logger.logLevel;
+  const context = vm.createContext({at});
+  vm.runInContext(editor.slice(editor.indexOf('  function quietLoad('), editor.indexOf('  async function importBytes(')), context);
+  let during;
+  context.quietLoad(() => { during = at.Logger.logLevel; });
+  assert.equal(during, at.LogLevel.None, 'Import failures do not log to the console');
+  assert.equal(at.Logger.logLevel, previous, 'Normal logging is restored after import');
+}
+
+// Mobile keeps New/Open reachable, and the track volume readout has a stable target.
+{
+  const html = fs.readFileSync('public/editor/index.html', 'utf8');
+  const css = fs.readFileSync('public/editor/styles.css', 'utf8');
+  const mobile = css.slice(css.indexOf('@media (max-width:760px)'), css.indexOf('@media (max-height:650px)'));
+  assert.doesNotMatch(mobile, /#btn-new/, 'New song stays in the scrollable mobile toolbar');
+  assert.doesNotMatch(mobile, /#btn-open/, 'Open file stays in the scrollable mobile toolbar');
+  assert.match(html, /id="track-volume-label"/, 'Track volume percentage has a live label');
+  assert.match(editor, /txt\('track-volume-label'/);
 }
 
 // String navigation must retarget note operations, including empty strings.

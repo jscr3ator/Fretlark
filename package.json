@@ -1,7 +1,7 @@
 {
   "name": "fretlark",
   "version": "1.0.0",
-  "description": "Open-source Guitar Pro style tab editor, player and sharing library that runs on Cloudflare Workers.",
+  "description": "Open-source tab editor that opens Guitar Pro files, with a player and sharing library that runs on Cloudflare Workers.",
   "license": "MIT",
   "private": true,
   "type": "module",
