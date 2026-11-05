@@ -109,7 +109,9 @@ api.midiEventsPlayed.on(e=>{
 // closes itself when the pointer leaves. Only transform/opacity animate; layout is read once per open.
 {
  const button=$('btn-metronome'),pop=$('metro-pop'),slider=$('metro-volume'),readout=$('metro-volume-value');
- let hideTimer,holdTimer,held=false,dragging=false,volume=60,isOpen=false;
+ let hideTimer,holdTimer,held=false,dragging=false,volume=80,isOpen=false;
+ // At gain 1 the click sits ~20 dB under the music; 100% maps to gain 4 (about level with it), on a curve so low settings stay usable.
+ const metronomeGain=percent=>4*Math.pow(percent/100,1.5);
  const place=()=>{const r=button.getBoundingClientRect(),w=pop.offsetWidth;pop.style.top=r.bottom+8+'px';pop.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px';pop.style.setProperty('--tip',Math.max(14,Math.min(w-14,r.left+r.width/2-parseFloat(pop.style.left)))+'px');};
  const setOpen=yes=>{
   if(yes===isOpen)return;
@@ -121,7 +123,7 @@ api.midiEventsPlayed.on(e=>{
  };
  const show=()=>{clearTimeout(hideTimer);setOpen(true);};
  const hide=(delay=160)=>{clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(!dragging)setOpen(false);},delay);};
- const apply=()=>{readout.textContent=volume;slider.value=volume;slider.style.setProperty('--fill',volume+'%');if(api.metronomeVolume>0)api.metronomeVolume=volume/100;};
+ const apply=()=>{readout.textContent=volume;slider.value=volume;slider.style.setProperty('--fill',volume+'%');if(api.metronomeVolume>0)api.metronomeVolume=metronomeGain(volume);};
  button.addEventListener('click',e=>{
   if(held){held=false;e.stopImmediatePropagation();return;}
   queueMicrotask(()=>{if(api.metronomeVolume>0){apply();if(button.matches(':hover'))show();}else setOpen(false);});

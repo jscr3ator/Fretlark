@@ -31,5 +31,8 @@ assert.ok(Math.abs(count.seconds-off.seconds-2)<.02,'4/4 at 120 BPM adds one 2-s
 assert.ok(both.early>.001&&both.late>.001);assert.ok(Math.abs(both.seconds-count.seconds)<.02);
 assert.ok(disabled.early>.001);assert.equal(disabled.late,0,'Turning metronome off during playback silences later clicks');assert.equal(disabled.volume,0);
 assert.equal(enabled.early,0);assert.ok(enabled.late>.001,'Turning metronome on during playback begins clicks');
+// The player slider's 100% is gain 4: clearly louder than the old ceiling of 1, still below clipping.
+const quiet=render(1,0),loud=render(4,0);
+assert.ok(loud.peak>quiet.peak*3,'Metronome at 100% is at least ~10 dB louder than the old maximum');assert.ok(loud.peak<1,'Loudest metronome does not clip');
 }
 console.log('PASS: both SoundFonts; offline sample measurement confirms metronome on/off, live toggles and one-bar count-in; no audio device opened.');

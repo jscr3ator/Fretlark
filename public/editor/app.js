@@ -489,8 +489,9 @@
     setPracticeRange(Math.min(dragBar,beat.voice.bar.index)+1,Math.max(dragBar,beat.voice.bar.index)+1);
     if(!api.isLooping)loop();
   }else if(isViewer){if(api.isLooping)applyLoopRange();else api.playbackRange=null;}dragBar=null;});
-  listen('btn-metronome','click',()=>{api.metronomeVolume=audioMuted?0:api.metronomeVolume>0?0:.6;activate('btn-metronome',api.metronomeVolume>0);});
-  listen('btn-count-in','click',()=>{api.countInVolume=audioMuted?0:api.countInVolume>0?0:.7;activate('btn-count-in',api.countInVolume>0);});
+  // The click is far quieter than instruments at gain 1, so metronome and count-in start well above it.
+  listen('btn-metronome','click',()=>{api.metronomeVolume=audioMuted?0:api.metronomeVolume>0?0:2.8;activate('btn-metronome',api.metronomeVolume>0);});
+  listen('btn-count-in','click',()=>{api.countInVolume=audioMuted?0:api.countInVolume>0?0:2.8;activate('btn-count-in',api.countInVolume>0);});
   listen('speed-select','change',()=>{api.playbackSpeed=Number(val('speed-select',1));});
   for(const id of ['master-volume','dock-master-volume'])listen(id,'input',()=>{const v=audioMuted?0:clamp(val(id,75),0,100);api.masterVolume=v/100;set('master-volume',v);set('dock-master-volume',v);for(const input of [$('master-volume'),$('dock-master-volume')])if(input?.nextElementSibling)input.nextElementSibling.textContent=v+'%';});
   for(const id of ['zoom-select','layout-select','notation-select'])listen(id,'change',changeView);
