@@ -151,7 +151,7 @@
     }
     assignBarIds(score,added);
   }
-  // Guitar Pro's Insert key adds a bar before the cursor, matching the meter and key of the bar it displaces.
+  // the standard Insert key adds a bar before the cursor, matching the meter and key of the bar it displaces.
   function insertBar(score, index) {
     index=Math.max(0,Math.min(score.masterBars.length,index));
     addBar(score);

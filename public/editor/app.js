@@ -43,7 +43,7 @@
   let undo = [], redo = [], dirty = false, loading = false, clipboard = null, saveTimer, toastTimer;
   let lastPlayedBar = -1, currentString = 1, digitBuffer = '', digitTimer, digitUndoEntry, pendingBarSeek=null, pendingEditRefresh=null, pendingEditTick=null, editRefreshVersion=0, viewportIntent=0, playbackIntent=0;
   const openedDocuments=[];let documentIndex=-1;
-  // Like Guitar Pro, a newly entered or changed note sounds at once, so edits are audible even in a busy mix.
+  // As in desktop tab editors, a newly entered or changed note sounds at once, so edits are audible even in a busy mix.
   function auditionNote(){const n=selectedNote();if(n&&!audioMuted&&api.isReadyForPlayback&&api.playerState!==1)try{api.playNote(n);}catch{}}
   function clearDigitEntry(){clearTimeout(digitTimer);digitBuffer='';digitUndoEntry=null;}
   // Respect a student's data-saving preference; all other devices use the richer bank.
@@ -311,7 +311,7 @@
     if(isViewer||!check('editor-mode'))return;
     const staff=selectedTrack().staves[selected.staff],note=staff.isStringed&&!staff.isPercussion?b.notes.find(n=>n.string===staff.tuning.length+1-currentString):b.notes[selected.note];
     if(!note){
-      // Guitar Pro style string cursor: show where the next fret lands on an empty string.
+      // Classic string cursor: show where the next fret lands on an empty string.
       const tab=staff.showTablature&&staff.isStringed&&!staff.isPercussion?(api.renderer.boundsLookup.findBeats(b)||[]).at(-1):null;
       if(!tab)return;
       const lines=staff.tuning.length,bar=tab.barBounds.realBounds,gap=lines>1?bar.h/(lines-1):bar.h,y=bar.y+(currentString-1)*gap,size=Math.max(10,gap*.95);
@@ -516,7 +516,7 @@
     if(['fret','string','pitch'].includes(key)&&typeof auditionNote==='function')auditionNote();
   }
   for(const id of Object.keys(noteFields)) listen(id,'change',()=>commitNoteField(id));
-  // Guitar Pro techniques set straight on the alphaTab note, beat or measure. Each entry both applies and reads back its control.
+  // Standard techniques set straight on the alphaTab note, beat or measure. Each entry both applies and reads back its control.
   const E=typeof at==='object'?at.model:{}, num=v=>Number(v), bendPoints={2:[[0,0],[60,1]],3:[[0,1],[60,0]],4:[[0,0],[20,1],[40,1],[60,0]],6:[[0,1],[60,1]],7:[[0,1],[30,1],[60,2]],8:[[0,1],[60,0]]};
   function setBend(n){const amount=Number(val('bend-input',0)),type=Number(val('bend-style-select',2));n.bendPoints=null;n.bendType=amount?type:E.BendType.None;if(amount)for(const [offset,k] of bendPoints[type])n.addBendPoint(new E.BendPoint(offset,Math.min(12,amount*k)));}
   const whammy={dive1:[[0,0],[60,-2]],dive2:[[0,0],[60,-4]],dip:[[0,0],[30,-4],[60,0]],predive:[[0,-4],[60,-4]],scoop:[[0,-2],[30,0],[60,0]]};
@@ -561,23 +561,23 @@
   listen('direction-target-select','change',()=>mutate(s=>setDirection(s.masterBars[selected.bar],'Target',val('direction-target-select')),'Sign updated'));
   listen('direction-jump-select','change',()=>mutate(s=>setDirection(s.masterBars[selected.bar],'Jump',val('direction-jump-select')),'Jump updated'));
   listen('clef-select','change',()=>mutate(s=>{s.tracks[activeTrack].staves[selected.staff].bars[selected.bar].clef=Number(val('clef-select',4));},'Clef updated'));
-  // A two-bar repeat sign spans this bar and the next, as in Guitar Pro.
+  // A two-bar repeat sign spans this bar and the next, as in desktop tab editors.
   listen('simile-select','change',()=>mutate(s=>{const bars=s.tracks[activeTrack].staves[selected.staff].bars,v=Number(val('simile-select',0)),bar=bars[selected.bar],next=bars[selected.bar+1];if(next&&next.simileMark===3)next.simileMark=0;if(v===2){if(!next)throw Error('Add a bar after this one for a two-bar repeat.');bar.simileMark=2;next.simileMark=3;}else bar.simileMark=v;},'Repeat sign updated'));
-  // C copies the previous beat's notes onto this one, like Guitar Pro's Copy Last Beat.
+  // C copies the previous beat's notes onto this one, like the standard Copy Last Beat.
   function copyLastBeat(){mutate(s=>{const b=M.beatAt(s,selected,true),prev=b?.previousBeat;if(!prev||!prev.notes.length)throw Error('The previous beat has no notes.');const st=b.voice.bar.staff;for(const n of prev.notes){if(st.isStringed&&!st.isPercussion)M.setNote(s,{...selected,note:-1},{string:st.tuning.length+1-n.string,fret:n.fret});else M.setNote(s,{...selected,note:b.notes.length},{pitch:st.isPercussion?n.percussionArticulation:n.realValue});}},'Copied the last beat',true,undefined,{lightweight:true});}
   listen('double-bar-input','change',()=>mutate(s=>{s.masterBars[selected.bar].isDoubleBar=check('double-bar-input');},'Bar line updated'));
   listen('free-time-input','change',()=>mutate(s=>{s.masterBars[selected.bar].isFreeTime=check('free-time-input');},'Free time updated'));
   listen('tuplet-select','change',()=>mutate(s=>M.setTuplet(s,selected,Number(val('tuplet-select',1))),'Tuplet updated',true,undefined,{lightweight:true}));
   listen('fermata-select','change',()=>mutate(s=>M.setFermata(s,selected,val('fermata-select')||null),'Fermata updated',true,undefined,{lightweight:true}));
   techniquesReady=true;
-  // Tunings: every Guitar Pro preset plus free entry, e.g. "D2 A2 D3 G3 B3 E4" (lowest string first).
+  // Tunings: every common preset plus free entry, e.g. "D2 A2 D3 G3 B3 E4" (lowest string first).
   function buildTuningOptions(){const el=$('tuning-select');if(!el||!window.Tunings)return;const groups={};for(const p of window.Tunings.PRESETS)(groups[p.instrument]??=[]).push(p);
     el.innerHTML=Object.entries(groups).map(([g,list])=>`<optgroup label="${esc(g)}">${list.map(p=>`<option value="preset:${esc(p.id)}">${esc(p.name)} · ${esc(window.Tunings.pitchesToText(p.pitches))}</option>`).join('')}</optgroup>`).join('')+'<option value="custom">Custom…</option><option value="none">No strings (standard notation)</option>';}
   function syncTuningSelect(st){const el=$('tuning-select');if(!el)return;if(!el.querySelector('option[value^="preset:"]'))buildTuningOptions();const T=window.Tunings,preset=T&&st.isStringed?T.identify(st.tuning):null;
     el.value=!st.isStringed?'none':preset?'preset:'+preset.id:'custom';const custom=el.value==='custom';$('tuning-custom-input').hidden=!custom;if(custom&&T&&document.activeElement!==$('tuning-custom-input'))set('tuning-custom-input',st.tuning.slice().reverse().map(T.noteName).join(' '));}
   function selectedTuning(){const v=val('tuning-select'),T=window.Tunings;if(v==='none')return [];if(v.startsWith('preset:'))return T.PRESETS.find(p=>p.id===v.slice(7))?.pitches;if(v==='custom'){const parts=val('tuning-custom-input').trim().split(/[\s,]+/).filter(Boolean),pitches=parts.map(T.parsePitch);if(parts.length<1||parts.length>10||pitches.some(p=>!Number.isInteger(p)))throw Error('Enter 1–10 pitches like E2 A2 D3, lowest string first.');return pitches.reverse();}return M.tunings[v];}
   listen('tuning-select','change',()=>{$('tuning-custom-input').hidden=val('tuning-select')!=='custom';if(val('tuning-select')==='custom'&&window.Tunings)set('tuning-custom-input',selectedTrack().staves[selected.staff].tuning.slice().reverse().map(window.Tunings.noteName).join(' '));});
-  // Track volume and pan automations start at the selected measure, as in Guitar Pro.
+  // Track volume and pan automations start at the selected measure, as in desktop tab editors.
   function syncAutomations(){if(!M.trackAutomations)return;const list=M.trackAutomations(score,activeTrack).filter(a=>a.bar===selected.bar);set('auto-volume-select',list.find(a=>a.type==='volume')?.value??'');set('auto-pan-select',list.find(a=>a.type==='pan')?.value??'');}
   listen('auto-volume-select','change',()=>mutate(s=>M.setTrackAutomation(s,activeTrack,selected.bar,'volume',val('auto-volume-select')===''?null:Number(val('auto-volume-select'))),'Volume change updated'));
   listen('auto-pan-select','change',()=>mutate(s=>M.setTrackAutomation(s,activeTrack,selected.bar,'pan',val('auto-pan-select')===''?null:Number(val('auto-pan-select'))),'Pan change updated'));
@@ -599,16 +599,16 @@
     const map=root&&id&&window.Theory?window.Theory.fretboardMap(st.tuning,root,id,15):null;
     el.querySelectorAll('[data-fret]').forEach(cell=>{const hit=map?.[Number(cell.dataset.string)-1]?.find(x=>x.fret===Number(cell.dataset.fret));cell.classList.toggle('in-scale',!!hit);cell.classList.toggle('scale-root',!!hit?.isRoot);if(hit)cell.dataset.degree=hit.name;else delete cell.dataset.degree;});}
   listen('scale-root-select','change',applyScale);listen('scale-type-select','change',applyScale);
-  // Guitar Pro's single-key technique shortcuts drive the same inspector controls, so undo and sync stay in one place.
+  // the standard single-key technique shortcuts drive the same inspector controls, so undo and sync stay in one place.
   function quick(id,value){const el=$(id);if(!el)return;if(el.type==='checkbox')el.checked=value;else el.value=String(value);el.dispatchEvent(new Event('change'));}
   const quickKeys={c:()=>copyLastBeat(),'%':()=>quick('simile-select',Number(val('simile-select',0))===1?0:1),o:()=>quick('effect-ghost',!check('effect-ghost')),b:()=>{if(Number(val('bend-input',0))){quick('bend-input',0);}else{set('bend-style-select',2);quick('bend-input',4);}},f:()=>quick('fermata-select',val('fermata-select')?'':'medium'),g:()=>addGrace('before'),'/':()=>quick('tuplet-select',Number(val('tuplet-select',1))===3?1:3),n:()=>quick('trill-input',val('trill-input')===''?Math.min(36,(selectedNote()?.fret??0)+2):''),':':()=>quick('accent-select',Number(val('accent-select',0))===2?0:2),'<':()=>quick('fade-select',Number(val('fade-select',0))===1?0:1),'>':()=>quick('fade-select',Number(val('fade-select',0))===2?0:2),'(':()=>quick('effect-lh-tap',!check('effect-lh-tap')),')':()=>quick('percussive-select',val('percussive-select')==='tap'?'':'tap'),'$':()=>quick('percussive-select',val('percussive-select')==='slap'?'':'slap'),'"':()=>quick('tremolo-select',Number(val('tremolo-select',0))===32?0:32),D:()=>quick('pickstroke-select',Number(val('pickstroke-select',0))===2?0:2),U:()=>quick('pickstroke-select',Number(val('pickstroke-select',0))===1?0:1),W:()=>quick('vibrato-select',Number(val('vibrato-select',0))===2?0:2)};
-  // Lyrics editor: Guitar Pro style syllable text for the whole track, one syllable per note.
+  // Lyrics editor: Classic syllable text for the whole track, one syllable per note.
   function loadLyricsText(){set('lyrics-text',window.LyricsTool.readLyrics(score,activeTrack,Math.max(0,Number(val('lyrics-start',1))-1),Number(val('lyrics-line',0))));}
   listen('btn-lyrics','click',()=>{if(!score||!window.LyricsTool)return;set('lyrics-start',1);loadLyricsText();$('lyrics-dialog').showModal();$('lyrics-text').focus();});
   listen('lyrics-line','change',loadLyricsText);listen('lyrics-start','change',loadLyricsText);
   listen('lyrics-apply','click',()=>{let result;mutate(s=>{result=window.LyricsTool.assignLyrics(s,activeTrack,Math.max(0,Number(val('lyrics-start',1))-1),val('lyrics-text'),Number(val('lyrics-line',0)));},'Lyrics updated');$('lyrics-dialog').close();if(result?.leftover)toast(`${result.leftover} syllables did not fit on the notes`,true);});
   listen('btn-ascii','click',()=>{if(!score||!window.AsciiTab)return;try{download(window.AsciiTab.exportAscii(score,{tracks:[activeTrack]}),`${score.title||'Untitled'}.txt`,'text/plain');toast('ASCII tab downloaded');}catch(e){toast(e.message,true);}});
-  // Command palette (Ctrl/⌘+E): every action searchable by name, like Guitar Pro 8.
+  // Command palette (Ctrl/⌘+E): every action searchable by name, like desktop tab editors.
   const press=id=>()=>$(id)?.click(), editing=()=>!isViewer&&!!score;
   const askNumber=(placeholder,min,max)=>({placeholder,parse:t=>{const n=Number(t);if(!Number.isFinite(n)||n<min||n>max)throw Error(`Enter a number from ${min} to ${max}.`);return n;}});
   const askText=placeholder=>({placeholder,parse:t=>t.trim()});
@@ -807,7 +807,7 @@
   function move(delta){
     const b=curBeat();if(!b)return;const next=delta>0?b.nextBeat:b.previousBeat;
     if(next){selectBeat(next);api.tickPosition=api.tickCache?.getBeatStart(next)??next.absolutePlaybackStart;api.scrollToCursor();return;}
-    // Like Guitar Pro, stepping past the final beat extends the song by one bar.
+    // As in desktop tab editors, stepping past the final beat extends the song by one bar.
     if(delta>0&&!isViewer&&check('editor-mode')&&selected.bar===score.masterBars.length-1)mutate(s=>{M.addBar(s);selected.bar=s.masterBars.length-1;selected.beat=0;},'Bar added');
   }
   function moveBar(delta){if(score)seekBar(clamp(selected.bar+delta,0,score.masterBars.length-1));}
