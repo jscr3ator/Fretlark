@@ -952,6 +952,33 @@
     $('upload-submit').textContent = files.length > 1 ? `Upload ${files.length} files` : 'Upload';
   }
 
+  // MIDI has no strings or frets: convert it to a GP file in the browser (guessed fingering), then upload that.
+  let midiImportReady, midiWarnings = [];
+  // Conversion notes (skipped tracks, loose timing) stay visible after the upload toast.
+  function showMidiWarnings() {
+    if (!midiWarnings.length) return;
+    const node = $('toast');
+    node.textContent = `MIDI converted with changes. ${midiWarnings.join(' ')}`;
+    node.className = 'toast visible';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => node.classList.remove('visible'), 12000);
+    midiWarnings = [];
+  }
+  function loadMidiImport() {
+    const load = src => new Promise((resolve, reject) => { const el = document.createElement('script'); el.src = src; el.onload = resolve; el.onerror = () => reject(new Error('The MIDI importer could not be loaded.')); document.head.appendChild(el); });
+    return midiImportReady ||= (async () => { for (const src of ['/editor/vendor/tonejs-midi.js', '/editor/midi-fingering.js', '/editor/midi-drums.js', '/editor/midi-import.js']) await load(src); })().catch(error => { midiImportReady = null; throw error; });
+  }
+  async function prepareFile(file) {
+    if (!/\.midi?$/i.test(file.name)) return file;
+    if (file.size > 30 * 1024 * 1024) throw new Error('use a file smaller than 30 MB.');
+    await loadMidiImport();
+    const alphaTab = window.alphaTab, settings = new alphaTab.Settings();
+    const {tex, warnings} = window.FretlarkMidiImport.toAlphaTex(new Uint8Array(await file.arrayBuffer()), {fileName: file.name});
+    const bytes = new alphaTab.exporter.Gp7Exporter().export(alphaTab.importer.ScoreLoader.loadAlphaTex(tex, settings), settings);
+    for (const warning of warnings || []) midiWarnings.push(`${file.name}: ${warning}`);
+    return new File([bytes], file.name.replace(/\.midi?$/i, '.gp'), {type: 'application/octet-stream'});
+  }
+
   async function inspect(file) {
     if (file.size > 30 * 1024 * 1024) throw new Error(`${file.name}: use a file smaller than 30 MB.`);
     const alphaTab = window.alphaTab;
@@ -995,6 +1022,7 @@
     }
 
     const pending = files.slice();
+    midiWarnings = [];
     const failedFiles = [];
     const failures = [];
     const uploaded = [];
@@ -1004,8 +1032,9 @@
         const file = pending[index];
         status('upload-status', `Checking and uploading ${index + 1} of ${pending.length}: ${file.name}`);
         try {
-          const metadata = await inspect(file);
-          const lesson = await api('admin/lessons', {method: 'POST', ...uploadOptions(file, metadata)});
+          const upload = await prepareFile(file);
+          const metadata = await inspect(upload);
+          const lesson = await api('admin/lessons', {method: 'POST', ...uploadOptions(upload, metadata)});
           updateLesson(lesson);
           uploaded.push(lesson);
         } catch (error) {
@@ -1034,6 +1063,7 @@
       toast('File uploaded. Only you have access.');
     }
     else toast(`${uploaded.length} songs uploaded. Select Share on a song to create its shared link.`);
+    showMidiWarnings();
   }
 
   function showDetails(lesson, restoreTarget = document.activeElement) {
@@ -1088,6 +1118,7 @@
       };
       updateLesson(await api(`admin/lessons/${encodeURIComponent(selected.id)}`, json('PATCH', body)));
       if (replacement) {
+        replacement = await prepareFile(replacement);
         const metadata = await inspect(replacement);
         metadata.title = $('detail-title').value;
         metadata.artist = $('detail-artist').value;
@@ -1103,6 +1134,7 @@
       }
       closeDialog('details-dialog');
       toast(lessonSettings().allowed_tracks?.length === 0 ? 'Shared link paused. Review and save visible tracks before sharing again.' : 'Song saved. Shared links load the latest version.');
+      showMidiWarnings();
     } catch (error) {
       status('details-status', error.message || 'Could not save song.', true);
     } finally {

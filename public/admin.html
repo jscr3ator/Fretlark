@@ -131,7 +131,7 @@
           <div id="link-table" class="link-table"></div>
         </section>
       </div>
-      <div id="overview-drop" class="drop-overlay" hidden aria-hidden="true"><div class="drop-card"><span class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></span><strong>Drop to upload</strong><span>GP, MusicXML or alphaTex</span></div></div>
+      <div id="overview-drop" class="drop-overlay" hidden aria-hidden="true"><div class="drop-card"><span class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></span><strong>Drop to upload</strong><span>GP, MusicXML, alphaTex or MIDI</span></div></div>
     </main>
 
     <section id="library" class="workspace-layout" hidden aria-label="Library">
@@ -380,9 +380,9 @@
       <label class="dropzone" id="dropzone" for="upload-files">
         <span class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></span>
         <strong>Drop files here</strong>
-        <span class="upload-formats" id="upload-hint">GP3–GP8 · MusicXML · alphaTex</span>
+        <span class="upload-formats" id="upload-hint">GP3–GP8 · MusicXML · alphaTex · MIDI</span>
         <span class="choose-files">Choose Files…</span>
-        <input id="upload-files" class="sr-only" type="file" multiple accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex" aria-label="Choose files" aria-describedby="upload-hint upload-limit">
+        <input id="upload-files" class="sr-only" type="file" multiple accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex,.mid,.midi" aria-label="Choose files" aria-describedby="upload-hint upload-limit">
       </label>
       <p id="upload-limit" class="upload-limit">Up to 30 MB per file · 250 MB and 200 songs per library</p>
       <div id="upload-selection" class="file-selection" aria-live="polite"></div>
@@ -428,7 +428,7 @@
       <div class="replace-row">
         <div><strong>Replace file</strong><span id="replace-name">Keeps the same shared link</span></div>
         <label class="button" for="replace-file">Choose File…</label>
-        <input type="file" id="replace-file" accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex" hidden>
+        <input type="file" id="replace-file" accept=".gp,.gp3,.gp4,.gp5,.gp6,.gp7,.gp8,.gpx,.xml,.musicxml,.mxl,.atex,.mid,.midi" hidden>
       </div>
       <p id="details-status" class="form-status" role="status" aria-live="polite"></p>
       <div class="dialog-actions">
