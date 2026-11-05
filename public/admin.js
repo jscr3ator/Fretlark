@@ -35,7 +35,7 @@
   const verifyToken = params.get('verify');
   if (resetToken) removeQueryParam('reset');
   const sessionState = {mailEnabled: false, contactEmail: null, contactEmailAddress: null, contactEmailVerified: false, hasRecoveryKey: null};
-  const bannerDismissKeys = {recovery: 'fretlark-banner-recovery-dismissed', email: 'fretlark-banner-email-dismissed'};
+  const bannerDismissKeys = {email: 'fretlark-banner-email-dismissed'};
   let emailBannerError = '';
   let accountControls;
   let uploading = false;
@@ -101,15 +101,14 @@
     // An unconfirmed email always wins, even after its banner is dismissed: never show both.
     const emailEligible = signedIn && Boolean(address) && !sessionState.contactEmailVerified;
     const showEmail = emailEligible && !bannerDismissed('email');
-    const showRecovery = signedIn && !emailEligible && sessionState.hasRecoveryKey === false && !sessionState.contactEmailVerified && !bannerDismissed('recovery');
 
     $('email-banner').hidden = !showEmail;
     $('email-banner').classList.toggle('error', showEmail && Boolean(emailBannerError));
     if (!emailEligible) emailBannerError = '';
     if (showEmail) $('email-banner-text').textContent = emailBannerError || `Confirm your email: we sent a link to ${address}.`;
 
-    $('recovery-banner').hidden = !showRecovery;
-    stack.hidden = !(showEmail || showRecovery);
+    // Recovery keys live in Settings > Security; nothing nags about them.
+    stack.hidden = !showEmail;
   }
 
   async function resendEmailConfirmation() {
@@ -1414,7 +1413,6 @@
   });
   const openRecoveryForm = () => { closeDialog('account-dialog'); status('recovery-status', ''); $('recovery-form').reset(); openDialog('recovery-dialog', 'recovery-password'); };
   $('recovery-open').addEventListener('click', openRecoveryForm);
-  $('recovery-banner-open').addEventListener('click', openRecoveryForm);
   $('recovery-form').addEventListener('submit', async event => {
     event.preventDefault(); const submit = $('recovery-submit'); submit.disabled = true; status('recovery-status', '');
     try {
