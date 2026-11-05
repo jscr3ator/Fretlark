@@ -2,6 +2,16 @@ import {handleApi} from '../lib/lessons.mjs';
 import {backupLibrary} from '../lib/library-backup.mjs';
 
 const security = {'Content-Security-Policy':"frame-ancestors 'self'; object-src 'none'; base-uri 'self'",'X-Frame-Options':'SAMEORIGIN','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
+// Payment webhooks come from the provider's servers, not a browser, and may burst.
+const rateLimitExempt = () => false;
+async function rateLimit(request, env) {
+ if (!env.API_LIMITER || typeof env.API_LIMITER.limit !== 'function') return null;
+ let success = true;
+ try { ({success} = await env.API_LIMITER.limit({key: request.headers.get('cf-connecting-ip') || 'unknown'})); }
+ catch { return null; } // Self-hosted limits or a transient binding failure must never break the API.
+ if (success) return null;
+ return new Response(JSON.stringify({error: 'Too many requests. Wait a moment and try again.'}), {status: 429, headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '60', ...security}});
+}
 
 export default {
  // Backups are optional: they only run when a BACKUP_BUCKET is bound.
@@ -13,7 +23,11 @@ export default {
   headers.delete('oai-authenticated-user-email');
   const cleanRequest = new Request(request, {headers});
   let response;
-  if(url.pathname.startsWith('/api/')) response = await handleApi(cleanRequest, env);
+  if(url.pathname.startsWith('/api/') && !rateLimitExempt(url.pathname)) {
+   const limited = await rateLimit(cleanRequest, env);
+   if (limited) return limited;
+   response = await handleApi(cleanRequest, env);
+  } else if(url.pathname.startsWith('/api/')) response = await handleApi(cleanRequest, env);
   else if(url.pathname === '/editor/player.html' && (url.searchParams.has('lesson') || url.searchParams.has('preview'))) {
    // The preview page and its score both require the owner's session.
    const lesson = url.searchParams.get('lesson');

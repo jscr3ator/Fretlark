@@ -22,9 +22,10 @@ function setCoverCredit(artwork){
  if(!credit){credit=document.createElement('a');credit.id='player-cover-credit';credit.className='cover-credit';credit.target='_blank';credit.rel='noopener noreferrer';(document.querySelector('.song-caption')||coverImage.parentElement).appendChild(credit);}
  credit.href=url;credit.textContent=label;credit.setAttribute('aria-label',`Album art: ${label}`);credit.title=`Album art: ${label}`;credit.hidden=false;
 }
-function retryCover(generation){
+function retryCover(generation,delay){
  if(generation!==coverGeneration||coverRetries>=2||coverRetryTimer)return;
- coverRetryTimer=setTimeout(()=>{coverRetryTimer=null;if(generation===coverGeneration)syncCover(true);},coverRetries++?65000:5000);
+ const wait=delay||(coverRetries?65000:5000);coverRetries++;
+ coverRetryTimer=setTimeout(()=>{coverRetryTimer=null;if(generation===coverGeneration)syncCover(true);},wait);
 }
 function syncCover(retry=false){
  const song=window.studio.score;
@@ -39,7 +40,7 @@ function syncCover(retry=false){
  if(!base)return;
  const controller=new AbortController();coverController=controller;
  fetch('/api/'+base+'/artwork',{credentials:'same-origin',cache:'no-store',signal:controller.signal})
- .then(response=>{if(response.status===429||response.status>=500)throw Error('Artwork unavailable');return response.ok?response.json():null;}).then(data=>{
+ .then(response=>{if(response.status===429)throw Object.assign(Error('Artwork unavailable'),{retryDelay:(Number(response.headers.get('Retry-After'))||60)*1000});if(response.status>=500)throw Error('Artwork unavailable');return response.ok?response.json():null;}).then(data=>{
   if(generation!==coverGeneration||!data?.artwork||JSON.stringify([data.title,data.artist])!==identity)return;
   const artwork=data.artwork;let url;try{url=new URL(artwork.url);}catch{return;}
   if(url.protocol!=='https:'||!/^(?:is\d+-ssl\.mzstatic\.com|(?:e-cdns|cdn)-images\.dzcdn\.net)$/.test(url.hostname)||url.port||url.username||url.password)return;
@@ -54,7 +55,7 @@ function syncCover(retry=false){
    coverImage.classList.add('album-cover');coverImage.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;setCoverCredit(artwork);
   };
   preload.src=url.href;
- }).catch(()=>retryCover(generation));
+ }).catch(error=>retryCover(generation,error?.retryDelay));
 }
 window.addEventListener('online',()=>{coverRetries=0;syncCover(true);});
 const handGuide=window.HandPosition.create({host:$('hand-board'),status:$('hand-status'),chord:$('hand-chord'),detail:$('hand-detail'),noteName:pitch=>window.alphaTab.model.Tuning.getTextForTuning(pitch,false)});

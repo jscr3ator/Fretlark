@@ -28,5 +28,15 @@
       "binding": "BUCKET",
       "bucket_name": "fretlark-files"
     }
+  ],
+  "ratelimits": [
+    {
+      "name": "API_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 1500,
+        "period": 60
+      }
+    }
   ]
 }

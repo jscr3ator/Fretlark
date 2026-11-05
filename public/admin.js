@@ -52,7 +52,7 @@
     const response = await fetch(`/api/${path}`, {cache: 'no-store', credentials: 'same-origin', ...options});
     let body = null;
     try { body = await response.json(); } catch { /* Some proxy errors have no JSON body. */ }
-    if (!response.ok) throw Object.assign(new Error(body?.error || `Request failed (${response.status}).`), {status: response.status,code:body?.code});
+    if (!response.ok) throw Object.assign(new Error(body?.error || `Request failed (${response.status}).`), {status: response.status,code:body?.code,retryAfter:Number(response.headers.get('Retry-After'))||null});
     return body;
   }
 
@@ -412,14 +412,14 @@
     if(Date.now()>=(coverExpiry.get(key)??Infinity)){coverResults.delete(key);coverExpiry.delete(key);}
     return coverResults.has(key);
   }
-  function retryCover(key){
+  function retryCover(key,delay){
     const count=coverRetries.get(key)||0;
     if(count>=2||coverRetryTimers.has(key))return;
     coverRetries.set(key,count+1);
     coverRetryTimers.set(key,setTimeout(()=>{
       coverRetryTimers.delete(key);
       document.querySelectorAll('[data-cover-key]').forEach(node=>{if(node.dataset.coverKey===key)queueCover(node);});
-    },count?65000:5000));
+    },delay||(count?65000:5000)));
   }
   addEventListener('online',()=>{
     coverRetryTimers.forEach(timer=>clearTimeout(timer));coverRetryTimers.clear();coverRetries.clear();
@@ -468,7 +468,7 @@
       coverResults.set(key,artwork||null);
       coverExpiry.set(key,Date.now()+(artwork?604800000:3600000));
       document.querySelectorAll('[data-cover-key]').forEach(node=>{if(node.dataset.coverKey===key)applyCover(node,artwork);});
-    }catch(error){if(!error.status||error.status===429||error.status>=500)retryCover(key);}
+    }catch(error){if(!error.status||error.status===429||error.status>=500)retryCover(key,error.status===429?(error.retryAfter||60)*1000:0);}
     finally{coverPending.delete(key);coverRequests--;loadCovers();}
   }
 

@@ -18,6 +18,40 @@ const demo=await worker.fetch(new Request('https://fretline.example/api/demo',{h
 assert.equal(await demo.text(),'/editor/demo.gp','Legacy demo route uses static assets without database/session work');
 console.log('PASS: standalone routes, security headers and identity boundary.');
 
+// API rate limiting: missing and failing bindings fail open so self-hosters never lose the API.
+const limitedRequest = headers => new Request('https://fretline.example/api/demo', {headers});
+assert.equal((await worker.fetch(limitedRequest(), env)).status, 200, 'Missing API_LIMITER lets requests through');
+const throwingLimiter = {...env, API_LIMITER: {limit: async () => { throw Error('binding offline'); }}};
+assert.equal((await worker.fetch(limitedRequest(), throwingLimiter)).status, 200, 'A failed limiter check fails open');
+
+// Requests under the threshold pass; the next one gets the friendly 429.
+const keys = [];
+let allowed = 0;
+const countingLimiter = {limit: async ({key}) => { keys.push(key); return {success: ++allowed <= 2}; }};
+const countedEnv = {...env, API_LIMITER: countingLimiter};
+assert.equal((await worker.fetch(limitedRequest({'cf-connecting-ip': '203.0.113.7'}), countedEnv)).status, 200);
+assert.equal((await worker.fetch(limitedRequest({'cf-connecting-ip': '203.0.113.7'}), countedEnv)).status, 200);
+const over = await worker.fetch(limitedRequest({'cf-connecting-ip': '203.0.113.7'}), countedEnv);
+assert.equal(over.status, 429);
+assert.equal(over.headers.get('Retry-After'), '60');
+assert.match(over.headers.get('Content-Type'), /application\/json/);
+assert.equal(over.headers.get('X-Content-Type-Options'), 'nosniff');
+assert.equal(over.headers.get('X-Frame-Options'), 'SAMEORIGIN');
+assert.match(over.headers.get('Content-Security-Policy'), /frame-ancestors 'self'/);
+assert.deepEqual(await over.json(), {error: 'Too many requests. Wait a moment and try again.'});
+assert.ok(keys.every(key => key === '203.0.113.7'), 'Limiter keys on the client IP');
+assert.equal((await worker.fetch(limitedRequest(), countedEnv)).status, 429);
+assert.equal(keys.at(-1), 'unknown', 'Missing client IP uses the unknown key');
+
+// Non-API assets never touch the IP limiter.
+let exemptCalls = 0;
+const denyingLimiter = {limit: async () => { exemptCalls++; return {success: false}; }};
+const deniedEnv = {...env, API_LIMITER: denyingLimiter};
+assert.equal((await worker.fetch(new Request('https://fretline.example/'), deniedEnv)).status, 200);
+assert.equal((await worker.fetch(new Request('https://fretline.example/admin'), deniedEnv)).status, 200);
+assert.equal(exemptCalls, 0, 'Static pages never call the limiter');
+console.log('PASS: API rate limit passes normal use, blocks floods with headers, exempts webhooks, and fails open.');
+
 // Exercise the actual autosave callback without initializing audio or the score renderer.
 const {readFileSync}=await import('node:fs');
 const {runInNewContext}=await import('node:vm');
