@@ -1,10 +1,10 @@
 /* Account settings and owner controls. No credentials are persisted in browser storage. */
-window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorage,username}) => {
+window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorage,username,session,refreshSession}) => {
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const status=(id,text,error=false)=>{ $(id).textContent=text;$(id).classList.toggle('error',error); };
   const currentUsername=()=>String(username?.()??'');
-  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
+  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,emailBusy=false,emailPending='',users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
   const date=value=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
   const cancelled=()=>Object.assign(new Error('Cancelled'),{name:'AbortError'});
   const report=(id,error)=>{if(error.name!=='AbortError')status(id,error.message,true);};
@@ -33,9 +33,37 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     $('recovery-remaining').textContent=`${security.recovery_codes_remaining} unused codes`;
     return security;
   }
+  function emailSession(){ return session?.()||{}; }
+  function renderEmail(){
+    const state=emailSession();
+    $('email-row').hidden=!state.mailEnabled;
+    if(!state.mailEnabled)return;
+    const has=!!state.contactEmail,verified=has&&state.contactEmailVerified===true;
+    $('email-detail').textContent=has?state.contactEmail:'No email added.';
+    $('email-badge').hidden=!has;$('email-badge').textContent=verified?'Verified':'Not verified';$('email-badge').classList.toggle('is-on',verified);
+    $('email-open').textContent=has?'Change':'Add email';
+    $('email-resend').hidden=!has||verified;
+    $('email-remove').hidden=!has;
+  }
+  async function refreshEmail(){
+    try{ if(refreshSession) await refreshSession(); }catch{ /* Keep the last known address. */ }
+    renderEmail();
+  }
+  function openEmailDialog(mode='set'){
+    const state=emailSession();
+    if(!state.mailEnabled)return;
+    const resend=mode==='resend';
+    $('email-form').reset();status('email-status','');
+    $('email-title').textContent=resend?'Resend confirmation link':state.contactEmail?'Change email':'Add email';
+    $('email-hint').textContent=resend?'Enter the same address to send a new confirmation link.':'We’ll send a link to confirm this address.';
+    $('email-address').value=resend?emailPending:'';
+    $('email-factor').hidden=!security?.mfa_enabled;$('email-code').required=!!security?.mfa_enabled;
+    $('email-submit').textContent=resend?'Send link':'Send confirmation link';
+    closeDialog('account-dialog');openDialog('email-dialog',$('email-address').value?'email-password':'email-address');
+  }
   async function open(){
-    selectTab('general');status('security-status','');openDialog('account-dialog');
-    await Promise.allSettled([loadStorage().catch(error=>status('account-storage',error.message,true)),refreshSecurity().catch(error=>status('security-status',error.message,true))]);
+    selectTab('general');status('security-status','');renderEmail();openDialog('account-dialog');
+    await Promise.allSettled([loadStorage().catch(error=>status('account-storage',error.message,true)),refreshSecurity().catch(error=>status('security-status',error.message,true)),refreshEmail()]);
   }
   async function verify(){
     await refreshSecurity();
@@ -82,6 +110,35 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     if(deleteBusy)return;
     $('delete-account-form').reset();$('delete-account-factor').hidden=true;$('delete-account-code').required=false;
     $('delete-account-submit').disabled=true;$('delete-account-submit').textContent='Delete my account';status('delete-account-status','');
+  });
+  $('email-open').addEventListener('click',()=>openEmailDialog('set'));
+  $('email-resend').addEventListener('click',()=>openEmailDialog('resend'));
+  $('email-remove').addEventListener('click',async()=>{
+    if(!await confirmAction('Remove email?','You will no longer be able to reset your password by email. Your recovery key still works.',null,'Remove'))return;
+    $('email-remove').disabled=true;status('security-status','');
+    try{await secure(()=>api('auth/email-remove',json('POST',{})));await refreshEmail();toast('Email removed.');}
+    catch(error){report('security-status',error);}
+    finally{$('email-remove').disabled=false;}
+  });
+  $('email-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(emailBusy)return;
+    const email=$('email-address').value.trim();
+    emailBusy=true;
+    const controls=[...$('email-form').querySelectorAll('button,input')];controls.forEach(control=>control.disabled=true);
+    status('email-status','');$('email-submit').textContent='Sending…';
+    try{
+      await api('auth/email-set',json('POST',{email,current_password:$('email-password').value,code:$('email-code').value}));
+      emailPending=email;closeDialog('email-dialog');
+      toast(`We sent a confirmation link to ${email}. It expires in 24 hours.`);
+      await refreshEmail();
+    }catch(error){report('email-status',error);}
+    finally{
+      emailBusy=false;controls.forEach(control=>control.disabled=false);
+      $('email-submit').textContent=$('email-title').textContent==='Resend confirmation link'?'Send link':'Send confirmation link';
+    }
+  });
+  $('email-dialog').addEventListener('close',()=>{
+    $('email-form').reset();$('email-factor').hidden=true;$('email-code').required=false;status('email-status','');
   });
   async function secure(action){
     try{return await action();}catch(error){if(error.code!=='reauth_required')throw error;}
@@ -195,7 +252,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   $('recovery-done').addEventListener('click',()=>{if($('recovery-saved').checked)closeDialog('mfa-dialog');});
   $('mfa-dialog').addEventListener('close',()=>{codes=[];$('mfa-qr').replaceChildren();$('mfa-secret').textContent='';$('recovery-codes').replaceChildren();$('mfa-code').value='';});
   function canClose(id){
-    if(id==='users-dialog'&&busy||id==='mfa-dialog'&&mfaBusy||id==='delete-account-dialog'&&deleteBusy||id==='verify-dialog'&&$('verify-submit').disabled)return false;
+    if(id==='users-dialog'&&busy||id==='mfa-dialog'&&mfaBusy||id==='delete-account-dialog'&&deleteBusy||id==='verify-dialog'&&$('verify-submit').disabled||id==='email-dialog'&&emailBusy)return false;
     if(id==='mfa-dialog'&&codes.length&&!$('recovery-saved').checked){toast('Save your recovery codes, then check the confirmation.',true);return false;}
     return true;
   }

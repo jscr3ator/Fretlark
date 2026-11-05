@@ -16,7 +16,7 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
  if(algorithm.name==='PBKDF2')assert.ok(algorithm.iterations<=100000,'Workers PBKDF2 iteration limit exceeded');
  return deriveBits(algorithm,...args);
 };
-const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
 const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
@@ -380,7 +380,7 @@ const selfShare=(await call(`admin/lessons/${selfSong.id}/share`,{method:'POST',
 const selfFile=sql.prepare('SELECT file_key FROM lessons WHERE id=?').get(selfSong.id).file_key;
 assert.equal(objects.has(selfFile),true);
 sql.prepare('INSERT INTO lesson_views (lesson_id,day,views) VALUES (?,?,1)').run(selfSong.id,'2026-01-01');
-sql.prepare('INSERT INTO email_tokens (token_hash,teacher_id,kind,expires_at,created_at) VALUES (?,?,?,?,?)').run('self-token',selfId,'verify',Date.now()+60000,Date.now());
+sql.prepare('INSERT INTO email_tokens (id,teacher_id,kind,token_hash,email,expires_at,created_at) VALUES (?,?,?,?,?,?,?)').run('self-token',selfId,'verify','self-token-hash','self@example.test',Date.now()+60000,Date.now());
 sql.prepare("INSERT INTO auth_challenges (token_hash,teacher_id,password_hash,mfa_secret,expires_at) SELECT ?,id,password_hash,'x',? FROM teachers WHERE id=?").run('self-challenge',Date.now()+60000,selfId);
 const keepRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.72'},body:{username:'keepdelete',password:'keep delete strong password'}});
 assert.equal(keepRegister.status,200);
@@ -425,3 +425,149 @@ assert.equal(objects.has(keepFile),true,'Another account keeps its files');
 assert.equal((await call('session',{headers:keepHeaders})).data.authenticated,true);
 assert.equal((await call(`admin/lessons/${keepSong.id}`,{headers:keepHeaders})).status,200);
 console.log('PASS: self-service account deletion, reauthentication, confirmation, owner protection and isolation.');
+// Optional contact email verification and emailed password reset.
+sql.prepare('DELETE FROM auth_limits').run();
+const mails=[];
+const mailSend=async message=>{mails.push(message);};
+env.EMAIL={send:mailSend};
+env.MAIL_FROM='Fretlark <noreply@example.test>';
+const tokenFrom=(message,kind)=>message.text.match(new RegExp('\\?'+kind+'=([A-Za-z0-9_-]{43})'))[1];
+assert.equal((await call('session',{headers:{}})).data.mailEnabled,true);
+const emailRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.80'},body:{username:'emailuser',password:'email account password'}});
+assert.equal(emailRegister.status,200);assert.equal(emailRegister.data.skip_recovery_prompt,undefined);
+const emailId=sql.prepare('SELECT id FROM teachers WHERE email=?').get('emailuser').id;
+const emailHeaders={cookie:emailRegister.cookie.split(';')[0],'cf-connecting-ip':'192.0.2.80'};
+assert.equal((await call('auth/email-set',{method:'POST',headers:emailHeaders,body:{email:'person@example.test',current_password:'wrong password here'}})).status,401);
+const setEmail=await call('auth/email-set',{method:'POST',headers:emailHeaders,body:{email:'Person@Example.test',current_password:'email account password'}});
+assert.equal(setEmail.status,200);assert.deepEqual(setEmail.data,{ok:true});
+assert.equal(mails.length,1);assert.equal(mails[0].to,'person@example.test');
+assert.deepEqual(mails[0].from,{email:'noreply@example.test',name:'Fretlark'});
+assert.equal(sql.prepare('SELECT contact_email FROM teachers WHERE id=?').get(emailId).contact_email,'person@example.test');
+const preVerify=(await call('session',{headers:emailHeaders})).data;
+assert.equal(preVerify.contactEmail,'p***@example.test');assert.equal(preVerify.contactEmailVerified,false);
+const verifyToken=tokenFrom(mails[0],'verify');
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:'A'.repeat(43)}})).status,400,'Unknown confirmation tokens are rejected');
+assert.deepEqual((await call('auth/email-verify',{method:'POST',headers:{},body:{token:verifyToken}})).data,{ok:true});
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:verifyToken}})).status,400,'Confirmation links work once');
+assert.equal((await call('session',{headers:emailHeaders})).data.contactEmailVerified,true);
+const expiredSet=await call('auth/email-set',{method:'POST',headers:emailHeaders,body:{email:'expired@example.test',current_password:'email account password'}});
+assert.equal(expiredSet.status,200);
+const expiredVerifyToken=tokenFrom(mails.at(-1),'verify');
+sql.prepare("UPDATE email_tokens SET expires_at=0 WHERE teacher_id=? AND kind='verify'").run(emailId);
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:expiredVerifyToken}})).status,400,'Expired confirmation links are rejected');
+const finalSet=await call('auth/email-set',{method:'POST',headers:emailHeaders,body:{email:'person@example.test',current_password:'email account password'}});
+assert.equal(finalSet.status,200);
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:tokenFrom(mails.at(-1),'verify')}})).status,200);
+// A verified address belongs to one account only.
+const dupeRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.81'},body:{username:'dupeuser',password:'dupe account password'}});
+const dupeId=sql.prepare('SELECT id FROM teachers WHERE email=?').get('dupeuser').id;
+const dupeHeaders={cookie:dupeRegister.cookie.split(';')[0],'cf-connecting-ip':'192.0.2.81'};
+assert.equal((await call('auth/email-set',{method:'POST',headers:dupeHeaders,body:{email:'person@example.test',current_password:'dupe account password'}})).status,200);
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:tokenFrom(mails.at(-1),'verify')}})).status,400,'Duplicate verified email is refused');
+assert.equal((await call('session',{headers:dupeHeaders})).data.contactEmailVerified,false);
+const removedEmail=await call('auth/email-remove',{method:'POST',headers:dupeHeaders,body:{current_password:'dupe account password'}});
+assert.equal(removedEmail.status,200);assert.deepEqual(removedEmail.data,{ok:true});
+const dupeSession=(await call('session',{headers:dupeHeaders})).data;
+assert.equal(dupeSession.contactEmail,null);assert.equal(dupeSession.contactEmailVerified,false);
+assert.equal(sql.prepare('SELECT contact_email,contact_email_verified_at FROM teachers WHERE id=?').get(dupeId).contact_email,null);
+assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM email_tokens WHERE teacher_id=?').get(dupeId).n,0);
+// Unverified addresses never receive a reset message.
+const pendingRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.82'},body:{username:'pendingmail',password:'pending account password'}});
+const pendingHeaders={cookie:pendingRegister.cookie.split(';')[0],'cf-connecting-ip':'192.0.2.82'};
+assert.equal((await call('auth/email-set',{method:'POST',headers:pendingHeaders,body:{email:'pending@example.test',current_password:'pending account password'}})).status,200);
+const pendingMailCount=mails.length;
+assert.deepEqual((await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.83'},body:{identifier:'pendingmail'}})).data,{ok:true});
+assert.deepEqual((await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.84'},body:{identifier:'pending@example.test'}})).data,{ok:true});
+assert.equal(mails.length,pendingMailCount,'Unverified addresses receive nothing');
+// The response is identical for unknown and known identifiers.
+const unknownForgot=await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.85'},body:{identifier:'nobody@example.test'}});
+const knownForgot=await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.86'},body:{identifier:'emailuser'}});
+assert.equal(unknownForgot.status,200);assert.deepEqual(unknownForgot.data,{ok:true});
+assert.equal(knownForgot.status,200);assert.deepEqual(knownForgot.data,{ok:true});
+// Account rate limit: three messages per hour, then the same success response without sending.
+const rateRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.87'},body:{username:'limitmail',password:'limit account password'}});
+const rateHeaders={cookie:rateRegister.cookie.split(';')[0],'cf-connecting-ip':'192.0.2.87'};
+await call('auth/email-set',{method:'POST',headers:rateHeaders,body:{email:'limit@example.test',current_password:'limit account password'}});
+assert.equal((await call('auth/email-verify',{method:'POST',headers:{},body:{token:tokenFrom(mails.at(-1),'verify')}})).status,200);
+sql.prepare('DELETE FROM auth_limits').run();
+const rateBase=mails.length;
+for(let i=0;i<3;i++)assert.equal((await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.87'},body:{identifier:'limitmail'}})).status,200);
+assert.equal(mails.length,rateBase+3);
+const rateLimited=await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.87'},body:{identifier:'limitmail'}});
+assert.deepEqual(rateLimited.data,{ok:true});assert.equal(mails.length,rateBase+3,'Account limit still returns ok');
+// Per-IP limit: ten requests per hour across identifiers.
+sql.prepare('DELETE FROM auth_limits').run();
+const ipBase=mails.length;
+for(let i=0;i<10;i++)await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.88'},body:{identifier:'missing-'+i}});
+assert.equal(mails.length,ipBase);
+assert.deepEqual((await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.88'},body:{identifier:'emailuser'}})).data,{ok:true});
+assert.equal(mails.length,ipBase,'Per-IP limit blocks sends');
+// Expired reset links fail without changing the password.
+sql.prepare('DELETE FROM auth_limits').run();
+await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.89'},body:{identifier:'limitmail'}});
+const expiredResetToken=tokenFrom(mails.at(-1),'reset');
+sql.prepare("UPDATE email_tokens SET expires_at=0 WHERE teacher_id=(SELECT id FROM teachers WHERE email='limitmail') AND kind='reset'").run();
+assert.equal((await call('auth/forgot-complete',{method:'POST',headers:{},body:{token:expiredResetToken,new_password:'expired reset new password'}})).status,400);
+// Completing a reset changes the password, signs out every session and burns all reset links.
+sql.prepare('DELETE FROM auth_limits').run();
+await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.90'},body:{identifier:'emailuser'}});
+const firstResetToken=tokenFrom(mails.at(-1),'reset');
+await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.91'},body:{identifier:'person@example.test'}});
+const secondResetToken=tokenFrom(mails.at(-1),'reset');
+const extraLogin=await call('auth/login',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.92'},body:{email:'emailuser',password:'email account password'}});
+assert.equal(extraLogin.status,200);
+assert.equal((await call('session',{headers:emailHeaders})).data.authenticated,true);
+const extraHeaders={cookie:extraLogin.cookie.split(';')[0]};
+assert.equal((await call('session',{headers:extraHeaders})).data.authenticated,true);
+const completed=await call('auth/forgot-complete',{method:'POST',headers:{},body:{token:firstResetToken,new_password:'new email password'}});
+assert.equal(completed.status,200);assert.deepEqual(completed.data,{ok:true});assert.equal(completed.cookie,null);
+assert.equal((await call('session',{headers:emailHeaders})).data.authenticated,false);
+assert.equal((await call('session',{headers:extraHeaders})).data.authenticated,false);
+assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM teacher_sessions WHERE teacher_id=?').get(emailId).n,0);
+assert.equal((await call('auth/forgot-complete',{method:'POST',headers:{},body:{token:firstResetToken,new_password:'another new password'}})).status,400,'Reset links work once');
+assert.equal((await call('auth/forgot-complete',{method:'POST',headers:{},body:{token:secondResetToken,new_password:'another new password'}})).status,400,'Other reset links are burned');
+assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM email_tokens WHERE teacher_id=? AND kind='reset'").get(emailId).n,0);
+assert.equal((await call('auth/login',{method:'POST',headers:{},body:{email:'emailuser',password:'email account password'}})).status,401);
+assert.equal((await call('auth/login',{method:'POST',headers:{},body:{email:'emailuser',password:'new email password'}})).status,200);
+// Registration can attach an optional address; a failed send never fails sign-up.
+const registeredEmail=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.93'},body:{username:'registermail',email:'register@example.test',password:'register mail password'}});
+assert.equal(registeredEmail.status,200);assert.equal(registeredEmail.data.skip_recovery_prompt,true);
+assert.match(registeredEmail.data.recovery_key,/^[A-Z2-9]{5}(-[A-Z2-9]{5}){3}$/);
+assert.equal(mails.at(-1).to,'register@example.test');
+const originalMailSend=env.EMAIL.send;
+env.EMAIL={send:async()=>{throw new Error('Email service unavailable');}};
+const failedMailRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.94'},body:{username:'failmail',email:'fail@example.test',password:'fail mail password'}});
+assert.equal(failedMailRegister.status,200);assert.equal(failedMailRegister.data.skip_recovery_prompt,undefined,'A failed send still shows the recovery key');
+assert.match(failedMailRegister.data.recovery_key,/^[A-Z2-9]{5}/);
+env.EMAIL={send:originalMailSend};
+// Without a binding, email setup is a clear 503 but forgot-request keeps its generic success.
+const savedEmail=env.EMAIL,savedFrom=env.MAIL_FROM;
+delete env.EMAIL;delete env.MAIL_FROM;
+assert.equal((await call('session',{headers:{}})).data.mailEnabled,false);
+const unconfigured=await call('auth/email-set',{method:'POST',headers:dupeHeaders,body:{email:'other@example.test',current_password:'dupe account password'}});
+assert.equal(unconfigured.status,503);assert.match(unconfigured.data.error,/not configured/i);
+assert.deepEqual((await call('auth/forgot-request',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.95'},body:{identifier:'person@example.test'}})).data,{ok:true});
+const noMailRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.96'},body:{username:'nomail',email:'nomail@example.test',password:'no mail password'}});
+assert.equal(noMailRegister.status,200);assert.equal(noMailRegister.data.skip_recovery_prompt,undefined);
+env.EMAIL=savedEmail;env.MAIL_FROM=savedFrom;
+console.log('PASS: contact email verification, reset emails, duplicate refusal, rate limits, optional registration email and unconfigured mail.');
+// MAIL_DEBUG=log is a local-only way to read links without an Email Service binding.
+{
+ const savedDebugEmail=env.EMAIL,savedDebugFrom=env.MAIL_FROM,originalLog=console.log,lines=[];
+ delete env.EMAIL;env.MAIL_DEBUG='log';env.MAIL_FROM='Fretlark <dev@localhost>';
+ console.log=(...args)=>{if(typeof args[0]==='string'&&args[0].startsWith('{'))lines.push(args[0]);else originalLog(...args);};
+ try{
+  assert.equal((await call('session',{headers:{}})).data.mailEnabled,true,'Debug mail needs only MAIL_FROM');
+  const debugRegister=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.97'},body:{username:'debugmail',email:'debug@example.test',password:'debug mail password'}});
+  assert.equal(debugRegister.status,200);assert.equal(debugRegister.data.skip_recovery_prompt,true);
+  const debugMail=lines.map(line=>{try{return JSON.parse(line);}catch{return null;}}).find(item=>item?.event==='mail-debug');
+  assert.ok(debugMail,'Debug mode logs one JSON line instead of sending');
+  assert.equal(debugMail.to,'debug@example.test');assert.match(debugMail.subject,/Confirm/);assert.match(debugMail.text,/admin\?verify=/);
+  delete env.MAIL_FROM;
+  assert.equal((await call('session',{headers:{}})).data.mailEnabled,false,'MAIL_FROM is still required');
+  assert.equal((await call('auth/email-set',{method:'POST',headers:{cookie:debugRegister.cookie.split(';')[0]},body:{email:'debug@example.test',current_password:'debug mail password'}})).status,503);
+ }finally{
+  console.log=originalLog;delete env.MAIL_DEBUG;env.EMAIL=savedDebugEmail;env.MAIL_FROM=savedDebugFrom;
+ }
+}
+console.log('PASS: local MAIL_DEBUG=log mail mode and its MAIL_FROM requirement.');

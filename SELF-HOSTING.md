@@ -10,7 +10,7 @@ This guide covers everything: setup, every setting, optional features, updating,
 | Accounts, song list | D1 (SQLite) | Yes |
 | Song files | R2 | Yes (needs R2 enabled on the account; a payment method may be requested, the free allowance still applies) |
 
-There is no email service, no third-party database and no build step for the front end.
+No email service is required, there is no third-party database and there is no build step for the front end. Email is optional; without it, accounts use a recovery key instead.
 
 ## Requirements
 
@@ -32,7 +32,7 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:8787. Data is stored in `.wrangler/state` and stays on your computer. To set up two-factor locally, copy `.dev.vars.example` to `.dev.vars` and fill in `MFA_ENCRYPTION_KEY`.
+Open http://127.0.0.1:8787. Data is stored in `.wrangler/state` and stays on your computer. To set up two-factor locally, copy `.dev.vars.example` to `.dev.vars` and fill in `MFA_ENCRYPTION_KEY`. `npm run dev` uses a local mail debug mode and prints confirmation and reset links to the terminal instead of sending email.
 
 ## 3. Deploy
 
@@ -71,6 +71,8 @@ Plain settings live in the `vars` block of `wrangler.jsonc`. Secrets are set wit
 | `REGISTRATION_OPEN` | var | `"true"` | `"false"` hides sign-up and rejects new accounts |
 | `OWNER_ACCOUNT_ID` | var | none | Account id of the owner |
 | `MFA_ENCRYPTION_KEY` | secret | created by setup | Base64 of 32 random bytes. **Never change it** or two-factor logins stop working |
+| `MAIL_FROM` | var | none | From address for account email, for example `"Fretlark <noreply@example.com>"`. Required when email is enabled |
+| `EMAIL` | send_email binding | none | Cloudflare Email Service binding used to send account email. Optional |
 | `STORAGE_LIMIT_MB` | var | `"500"` | Cloud storage per account in MB |
 | `BACKUP_BUCKET` | R2 binding | none | Turns on the daily backup |
 
@@ -86,6 +88,24 @@ Set `"REGISTRATION_OPEN": "false"` and deploy once your people have accounts. As
 
 1. Add the domain to Cloudflare (DNS must be on Cloudflare).
 2. `npm run setup -- --domain tabs.example.com` (reuses everything, adds the route, redeploys).
+
+### Email password reset (optional)
+
+Email is optional. Without it, everything works as before: people sign up with a username and password and save a one-time **recovery key** to reset a forgotten password. Sign-up and Settings hide every email control.
+
+To let people confirm an address and reset their password by email:
+
+1. Cloudflare Email Service needs the Workers Paid plan and a domain on Cloudflare DNS. In the dashboard, open **Compute → Email Service → Email Sending** and onboard the domain you will send from.
+2. Add the binding and sender address to `wrangler.jsonc`:
+   ```jsonc
+   "vars": {
+     "MAIL_FROM": "Fretlark <noreply@example.com>"
+   },
+   "send_email": [{ "name": "EMAIL" }]
+   ```
+3. Run `npm run deploy`.
+
+Confirmation links expire after 24 hours; password reset links expire after 30 minutes. Recovery keys still work, and people can add or remove an email later in **Settings → Security**.
 
 ### Storage limits
 
@@ -125,7 +145,7 @@ npm run deploy:update
 ## How accounts work
 
 - Username + password (12+ characters). Passwords are salted and hashed; sessions are cookie-based.
-- A one-time **recovery key** resets a forgotten password. There is no email.
+- A one-time **recovery key** resets a forgotten password. Email reset is optional; when it is off, the recovery key is the only way back in.
 - Optional two-factor (authenticator app) with recovery codes.
 - Rate limiting on sign-in and recovery.
 
@@ -140,6 +160,8 @@ npm run deploy:update
 **Blank page or 404 on the new site** → wait a minute for first deploy to propagate, then hard refresh.
 
 **Can't enable two-factor (503)** → `MFA_ENCRYPTION_KEY` isn't set. Run `npm run setup` again (it only creates what is missing) or `npx wrangler secret put MFA_ENCRYPTION_KEY` with a base64 32-byte value.
+
+**Email setup returns 503** → email is optional. Add both the `EMAIL` send_email binding and `MAIL_FROM`, and onboard the sending domain under **Compute → Email Service → Email Sending**.
 
 **Two-factor stopped working after redeploying** → the key changed. Restore the original value from your backup.
 

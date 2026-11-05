@@ -30,6 +30,11 @@
   const nextPath = /^\/(?!\/)[\w\-./?=&%]*$/.test(params.get('next') || '') ? params.get('next') : null;
   let recoveryDone = null;
   let authMode = 'login', signupShown = false, localOwner = 'guest', authChallenge = null;
+  let forgotMethod = 'recovery';
+  let resetToken = params.get('reset');
+  const verifyToken = params.get('verify');
+  if (resetToken) removeQueryParam('reset');
+  const sessionState = {mailEnabled: false, contactEmail: null, contactEmailVerified: false};
   let accountControls;
   let uploading = false;
   let savingDetails = false;
@@ -57,6 +62,37 @@
     toastTimer = setTimeout(() => node.classList.remove('visible'), 4500);
   }
 
+  function removeQueryParam(name) {
+    const url = new URL(location.href);
+    if (!url.searchParams.has(name)) return;
+    url.searchParams.delete(name);
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }
+
+  function readSession(session) {
+    sessionState.mailEnabled = session.mailEnabled === true;
+    sessionState.contactEmail = session.contactEmail || null;
+    sessionState.contactEmailVerified = session.contactEmailVerified === true;
+    return session;
+  }
+
+  async function refreshSession() {
+    return readSession(await api('session'));
+  }
+
+  async function handleEmailVerify() {
+    if (!verifyToken) return;
+    try {
+      await api('auth/email-verify', json('POST', {token: verifyToken}));
+      removeQueryParam('verify');
+      toast('Email confirmed');
+    } catch (error) {
+      removeQueryParam('verify');
+      toast(error.message || 'This confirmation link is invalid or has expired.', true);
+    }
+    try { await refreshSession(); } catch { /* The next init will retry. */ }
+  }
+
   function status(id, message, error = false) {
     const node = $(id);
     node.textContent = message;
@@ -80,32 +116,52 @@
     return normalizeSettings(row?.student_settings);
   }
 
-  const authTitles = {login: 'Sign in', register: 'Create account', forgot: 'Reset your password'};
-  const authButtons = {login: 'Sign in', register: 'Create account', forgot: 'Reset password'};
-  function setAuthMode(mode) {
-    authChallenge=null;
-    $('auth-form').hidden=false;$('auth-factor-form').hidden=true;$('auth-factor-code').value='';
-    authMode = mode === 'register' && !registrationOpen ? 'login' : ['register', 'forgot'].includes(mode) ? mode : 'login';
-    const registering = authMode === 'register', forgot = authMode === 'forgot';
+  const authTitles = {login: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password'};
+  const authButtons = {login: 'Sign in', register: 'Create account', forgot: 'Reset password', reset: 'Set new password'};
+  const authCopy = {
+    register: 'Pick a username. Add an email for password resets, or save the recovery key you get instead.',
+    registerNoMail: 'Pick a username. You will get a recovery key to reset your password if you forget it.',
+    forgot: 'Enter your username and the recovery key you saved when you signed up.',
+    forgotEmail: "Enter your username or email and we’ll send a reset link if that account has a confirmed email.",
+    reset: 'Choose a new password. Every device will need to sign in again.'
+  };
+  function authSubmitText() {
+    return authMode === 'forgot' && forgotMethod === 'email' ? 'Email me a reset link' : authButtons[authMode];
+  }
+  function setAuthMode(mode, method) {
+    authChallenge = null;
+    $('auth-form').hidden = false; $('auth-factor-form').hidden = true; $('auth-factor-code').value = '';
+    authMode = mode === 'register' && !registrationOpen ? 'login' : ['register', 'forgot', 'reset'].includes(mode) ? mode : 'login';
+    if (authMode === 'forgot') forgotMethod = !sessionState.mailEnabled ? 'recovery' : method === 'recovery' ? 'recovery' : 'email';
+    const registering = authMode === 'register', forgot = authMode === 'forgot', reset = authMode === 'reset';
+    const forgotEmail = forgot && sessionState.mailEnabled && forgotMethod === 'email', newPassword = registering || reset || (forgot && !forgotEmail);
     $('access-title').textContent = authTitles[authMode];
-    $('auth-submit').textContent = authButtons[authMode];
+    $('auth-submit').textContent = authSubmitText();
     $('auth-switch-label').textContent = registering ? 'Already have an account?' : authMode === 'login' ? 'New to Fretlark?' : '';
     $('auth-toggle').textContent = authMode === 'login' ? 'Create an account' : registering ? 'Sign in' : 'Back to sign in';
     $('auth-switch').hidden = authMode === 'login' && !registrationOpen;
-    $('auth-recovery').hidden = !forgot; $('auth-recovery').required = forgot;
-    $('auth-password').placeholder = forgot ? 'New password' : 'Password';
-    $('auth-password2-wrap').hidden = !forgot;
+    $('auth-email').hidden = reset; $('auth-email').required = !reset;
+    $('auth-email').placeholder = forgotEmail ? 'Username or email' : registering ? 'Choose a username' : 'Username';
+    $('auth-recovery').hidden = !(forgot && !forgotEmail); $('auth-recovery').required = forgot && !forgotEmail;
+    $('auth-password').closest('.password-field').hidden = forgotEmail;
+    $('auth-password').required = !forgotEmail;
+    $('auth-password').placeholder = newPassword ? 'New password' : 'Password';
+    $('auth-password2-wrap').hidden = !newPassword; $('auth-password2').required = newPassword;
     $('forgot-link').hidden = authMode !== 'login';
-    $('auth-password').autocomplete = registering || forgot ? 'new-password' : 'current-password';
-    $('auth-password').minLength = registering || forgot ? 12 : 0;
+    $('forgot-recovery-link').hidden = !forgotEmail;
+    $('reset-back').hidden = true;
+    $('auth-contact-wrap').hidden = !(registering && sessionState.mailEnabled);
+    $('auth-contact-hint').hidden = !(registering && sessionState.mailEnabled);
+    $('auth-contact-email').required = false;
+    $('auth-password').autocomplete = newPassword ? 'new-password' : 'current-password';
+    $('auth-password').minLength = newPassword ? 12 : 0;
     $('auth-password').type = 'password';
     $('password-toggle').setAttribute('aria-pressed', 'false');
     $('password-toggle').setAttribute('aria-label', 'Show password');
-    $('password-hint').hidden = !(registering || forgot);
-    $('auth-email').placeholder = registering ? 'Choose a username' : 'Username';
-    const copy = {register: 'Pick a username. You will get a recovery key to reset your password if you forget it.', forgot: 'Enter your username and the recovery key you saved when you signed up.'};
-    if (copy[authMode]) $('access-message').textContent = copy[authMode];
-    else if (Object.values(copy).includes($('access-message').textContent)) $('access-message').textContent = '';
+    $('password-hint').hidden = !newPassword;
+    const copy = reset ? authCopy.reset : forgotEmail ? authCopy.forgotEmail : forgot ? authCopy.forgot : registering ? (sessionState.mailEnabled ? authCopy.register : authCopy.registerNoMail) : '';
+    if (copy) $('access-message').textContent = copy;
+    else if (Object.values(authCopy).includes($('access-message').textContent)) $('access-message').textContent = '';
     status('auth-status', '');
   }
 
@@ -496,8 +552,9 @@
     $('retry-library').hidden = true;
 
     try {
-      const session = await api('session');
+      const session = await refreshSession();
       registrationOpen = session.registrationOpen === true;
+      forgotMethod = session.mailEnabled === true ? forgotMethod : 'recovery';
       $('username-current').textContent = session.email ? `Currently ${session.email}.` : 'Shown on your account.';
       $('recovery-banner').hidden = !(session.authType === 'password' && session.hasRecoveryKey === false);
       $('manage-users').hidden = session.owner !== true;
@@ -514,6 +571,11 @@
       $('delete-account-detail').textContent = session.owner === true ? 'The owner account cannot be deleted. Hand over ownership first.' : 'Permanently delete your account and every song saved in the cloud. Songs saved only on this device stay in this browser.';
       $('migration').hidden = !(passwordAccount && session.legacyMigrationAvailable);
 
+      if (resetToken) {
+        $('access').hidden = false;
+        setAuthMode('reset');
+        return;
+      }
       if (passwordAccount && nextPath) { location.replace(nextPath); return; }
       if (!passwordAccount) {
         $('access').hidden = false;
@@ -596,13 +658,52 @@
     return new Promise(resolve => { recoveryDone = () => { $('recovery-show-dialog').close(); recoveryDone = null; resolve(); }; });
   }
 
+  async function submitForgotRequest(identifier) {
+    const submit = $('auth-submit');
+    submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
+    submit.textContent = 'Sending…';
+    try {
+      await api('auth/forgot-request', json('POST', {identifier}));
+      $('auth-email').value = '';
+      status('auth-status', 'If that account has a confirmed email, a reset link is on its way. It expires in 30 minutes.');
+    } catch (error) {
+      status('auth-status', error.message || 'Something went wrong. Try again.', true);
+    } finally {
+      submit.disabled = false; $('auth-toggle').disabled = false;
+      submit.textContent = authSubmitText();
+    }
+  }
+
+  async function submitNewPassword(password) {
+    const submit = $('auth-submit');
+    if (password.length < 12 || password.length > 1024) return status('auth-status', 'Use a new password of 12 to 1024 characters.', true);
+    if (password !== $('auth-password2').value) return status('auth-status', 'The passwords do not match.', true);
+    submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
+    submit.textContent = 'Saving…';
+    try {
+      await api('auth/forgot-complete', json('POST', {token: resetToken, new_password: password}));
+      resetToken = null;
+      $('auth-password').value = ''; $('auth-password2').value = '';
+      setAuthMode('login');
+      status('auth-status', 'Password changed. Sign in with your new password.');
+    } catch (error) {
+      status('auth-status', error.message || 'This password reset link is invalid or has expired.', true);
+      $('reset-back').hidden = false;
+    } finally {
+      submit.disabled = false; $('auth-toggle').disabled = false;
+      submit.textContent = authSubmitText();
+    }
+  }
+
   async function submitAuth(event) {
     event.preventDefault();
     const form = $('auth-form');
     if (!form.reportValidity()) return;
-    const email = $('auth-email').value.trim();
+    const username = $('auth-email').value.trim();
     const password = $('auth-password').value;
-    if (authMode === 'forgot') return submitRecovery(email, password);
+    if (authMode === 'forgot' && sessionState.mailEnabled && forgotMethod === 'email') return submitForgotRequest(username);
+    if (authMode === 'forgot') return submitRecovery(username, password);
+    if (authMode === 'reset') return submitNewPassword(password);
     if (authMode === 'register' && (password.length < 12 || password.length > 1024)) {
       status('auth-status', 'Use a password between 12 and 1024 characters.', true);
       return;
@@ -614,13 +715,15 @@
     submit.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
     status('auth-status', '');
     try {
-      const result=await api(`auth/${authMode}`, json('POST', {email, password}));
+      const contactEmail = authMode === 'register' && sessionState.mailEnabled ? $('auth-contact-email').value.trim() : '';
+      const payload = authMode === 'register' ? {username, password, ...(contactEmail ? {email: contactEmail} : {})} : {email: username, password};
+      const result=await api(`auth/${authMode}`, json('POST', payload));
       if(result.mfa_required){
         authChallenge=result.challenge;$('auth-password').value='';$('auth-form').hidden=true;$('auth-switch').hidden=true;$('auth-factor-form').hidden=false;
         $('access-title').textContent='Two-factor authentication';$('access-message').textContent='Enter a code to finish signing in.';status('auth-factor-status','');$('auth-factor-code').focus();return;
       }
       $('auth-password').value = '';
-      if (result.recovery_key) await showRecoveryKey(result.recovery_key);
+      if (result.recovery_key && !result.skip_recovery_prompt) await showRecoveryKey(result.recovery_key);
       if (nextPath) { location.replace(nextPath); return; }
       await init();
     } catch (error) {
@@ -628,7 +731,7 @@
     } finally {
       submit.disabled = false;
       $('auth-toggle').disabled = false;
-      submit.textContent = authMode === 'register' ? 'Create account' : 'Sign in';
+      submit.textContent = authSubmitText();
     }
   }
 
@@ -1201,7 +1304,9 @@
   }
 
   $('auth-form').addEventListener('submit', submitAuth);
-  $('forgot-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot'); $('auth-email').value = email; $('auth-email').focus(); });
+  $('forgot-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'email'); $('auth-email').value = email; $('auth-email').focus(); });
+  $('forgot-recovery-link').addEventListener('click', () => { const email = $('auth-email').value; setAuthMode('forgot', 'recovery'); $('auth-email').value = email; $('auth-email').focus(); });
+  $('reset-back').addEventListener('click', () => { resetToken = null; setAuthMode('forgot', 'email'); $('auth-email').focus(); });
   $('recovery-key-saved').addEventListener('change', () => { $('recovery-key-done').disabled = !$('recovery-key-saved').checked; });
   $('recovery-key-done').addEventListener('click', () => recoveryDone?.());
   $('recovery-show-dialog').addEventListener('cancel', event => event.preventDefault());
@@ -1338,7 +1443,7 @@
       $('search').focus();
     }
   });
-  accountControls=window.setupAccountControls({api,json,toast,openDialog,closeDialog,loadStorage,username:()=>localOwner});
+  accountControls=window.setupAccountControls({api,json,toast,openDialog,closeDialog,loadStorage,username:()=>localOwner,session:()=>sessionState,refreshSession});
   $('auth-factor-back').addEventListener('click',()=>{setAuthMode('login');$('access-message').textContent='';$('auth-password').focus();});
   $('auth-factor-form').addEventListener('submit',async event=>{
     event.preventDefault();const button=$('auth-factor-submit');if(button.disabled)return;button.disabled=true;status('auth-factor-status','');
@@ -1358,5 +1463,5 @@
     $('password-toggle').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
   });
   setAuthMode(authMode);
-  init();
+  (async () => { await handleEmailVerify(); await init(); })();
 })();

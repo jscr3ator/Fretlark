@@ -18,7 +18,7 @@ Write, play and share guitar tabs in your browser.
 
 - Free and open source under the MIT license.
 - Opens Guitar Pro files, and exports them too.
-- Runs on Cloudflare's free plan. No servers, no email service, no extra database.
+- Runs on Cloudflare's free plan. Email is optional; no servers, no extra database.
 - Songs can stay only on your device, never uploaded.
 
 ## Features
@@ -109,6 +109,8 @@ If anything fails, read the Troubleshooting section of SELF-HOSTING.md, fix it, 
 | `REGISTRATION_OPEN` | setting | `"true"` opens sign-ups, `"false"` closes them |
 | `OWNER_ACCOUNT_ID` | setting | Account that manages users (set by `npm run make-owner`) |
 | `MFA_ENCRYPTION_KEY` | secret | Encrypts two-factor secrets (created once by setup) |
+| `MAIL_FROM` | setting, optional | From address for confirmation and reset email |
+| `EMAIL` | send_email binding, optional | Cloudflare Email Service binding that sends account email |
 | `STORAGE_LIMIT_MB` | setting, optional | Cloud storage per account in MB (default 500) |
 | `BACKUP_BUCKET` | R2 binding, optional | Turns on the daily backup |
 

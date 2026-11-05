@@ -8,6 +8,8 @@
   "vars": {
     "REGISTRATION_OPEN": "true",
     "STORAGE_LIMIT_MB": "500"
+    // Optional email verification and password reset. Uncomment this and "send_email" below.
+    // "MAIL_FROM": "Fretlark <noreply@example.com>"
   },
   "assets": {
     "directory": "public",
@@ -29,4 +31,6 @@
       "bucket_name": "fretlark-files"
     }
   ]
+  // Optional: Cloudflare Email Service binding for account emails. Leave disabled for local development.
+  // "send_email": [{"name": "EMAIL"}]
 }

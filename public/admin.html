@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=05966fa1e6e3">
+  <link rel="stylesheet" href="/admin.css?v=ba0fd9d44b41">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -62,10 +62,14 @@
             <input id="auth-recovery" name="recovery" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="Recovery key" hidden>
             <label class="field-label sr-only" for="auth-password">Password</label>
             <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="1024" placeholder="Password" required><button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 4 16 16"/></svg></button></div>
+            <div class="password-field" id="auth-contact-wrap" hidden><input id="auth-contact-email" name="contact_email" type="email" autocomplete="email" maxlength="254" placeholder="Email (optional)"></div>
           </div>
+          <p id="auth-contact-hint" class="field-hint" hidden>Add one to reset your password by email. Without it you will get a recovery key to save.</p>
           <div class="password-field" id="auth-password2-wrap" hidden><input id="auth-password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" placeholder="Confirm new password"></div>
           <p id="password-hint" class="field-hint" hidden>Use at least 12 characters.</p>
           <button id="forgot-link" class="text-button forgot-link" type="button">Forgot password?</button>
+          <button id="forgot-recovery-link" class="text-button forgot-recovery-link" type="button" hidden>Use my recovery key instead</button>
+          <button id="reset-back" class="text-button forgot-recovery-link" type="button" hidden>Back to forgot password</button>
           <p id="auth-status" class="form-status" role="status" aria-live="polite"></p>
           <button id="auth-submit" class="button primary large full-width" type="submit">Sign in</button>
         </form>
@@ -220,7 +224,8 @@
         <section id="settings-security" role="tabpanel" aria-labelledby="tab-security" hidden>
           <h3>Security</h3>
           <div class="settings-row"><div><h4>Username</h4><p id="username-current">Shown on your account.</p></div><button id="username-open" class="button" type="button">Change</button></div>
-          <div class="settings-row"><div><h4>Recovery key</h4><p>The only way back in if you forget your password.</p></div><button id="recovery-open" class="button" type="button">Create new key</button></div>
+          <div id="email-row" class="settings-row" hidden><div><h4>Email <span id="email-badge" class="status-badge" hidden>Not verified</span></h4><p id="email-detail">No email added.</p></div><div class="settings-row-actions"><button id="email-open" class="button" type="button">Add email</button><button id="email-resend" class="button" type="button" hidden>Resend link</button><button id="email-remove" class="button" type="button" hidden>Remove</button></div></div>
+          <div class="settings-row"><div><h4>Recovery key</h4><p>A backup way back in if you forget your password and have no confirmed email.</p></div><button id="recovery-open" class="button" type="button">Create new key</button></div>
           <div class="settings-row"><div><h4>Password</h4><p>Choose a strong, unique password.</p></div><button id="password-open" class="button" type="button">Change</button></div>
           <div class="settings-row"><div><h4>Two-factor authentication <span id="mfa-badge" class="status-badge">Off</span></h4><p id="mfa-detail">Add a code from your authenticator app.</p></div><button id="mfa-enable" class="button primary" type="button">Set up</button><button id="mfa-disable" class="button" type="button" hidden>Turn off</button></div>
           <div id="recovery-row" class="settings-row" hidden><div><h4>Recovery codes</h4><p id="recovery-remaining"></p></div><button id="mfa-recovery" class="button" type="button">Replace codes</button></div>
@@ -286,6 +291,18 @@
       <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required>
       <p id="password-status" class="form-status" role="status" aria-live="polite"></p>
       <div class="dialog-actions"><button class="button" type="button" data-close="password-dialog">Cancel</button><button id="password-submit" class="button primary" type="submit">Update Password</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="email-dialog" aria-labelledby="email-title">
+    <form id="email-form">
+      <div class="dialog-head"><h2 id="email-title">Add email</h2><button class="icon-button" type="button" data-close="email-dialog" aria-label="Close email settings"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <label class="field-label" for="email-address">Email</label><input id="email-address" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required>
+      <p id="email-hint" class="field-hint">We’ll send a link to confirm this address.</p>
+      <label class="field-label" for="email-password">Current password</label><input id="email-password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <div id="email-factor" hidden><label class="field-label" for="email-code">Authenticator or recovery code</label><input id="email-code" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div>
+      <p id="email-status" class="form-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button class="button" type="button" data-close="email-dialog">Cancel</button><button id="email-submit" class="button primary" type="submit">Send confirmation link</button></div>
     </form>
   </dialog>
 
@@ -453,7 +470,7 @@
   <script src="/admin-preview.js?v=a03b1950e8d5"></script>
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=8878e5d251d7"></script>
-  <script src="/admin.js?v=d059fd03b257"></script>
+  <script src="/account-settings.js?v=a8d087596e47"></script>
+  <script src="/admin.js?v=1a6ed4f39360"></script>
 </body>
 </html>

@@ -595,6 +595,8 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
 .settings-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid var(--separator)}
 .settings-row>div:first-child{min-width:0}.settings-row h4{font-size:13px;font-weight:600;line-height:1.5;margin:0}.settings-row p{font-size:12px;color:var(--label-2);line-height:1.6;margin:4px 0 0}
 .settings-row>.button,.settings-row>.text-button{flex:none}.settings-row .button{height:32px;padding:0 12px;font-size:12px}
+.settings-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:none;flex-wrap:wrap}
+#auth-contact-wrap input{padding-right:14px!important}
 .settings-row .segmented{width:204px;flex:none}.settings-row .segmented button{font-size:12px}
 .settings-footer{margin-top:25px}.settings-footer .button{height:34px;font-size:13px}
 .settings-content .plan-card{margin-top:0;padding:18px;border-radius:12px;box-shadow:none;border:1px solid var(--separator);background:transparent}
@@ -631,6 +633,7 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
  .settings-nav [role=tablist]{flex-direction:row;gap:2px;flex:1}.settings-nav button{white-space:nowrap;font-size:12px;padding:9px 10px;width:auto;text-align:center}.settings-nav button[aria-selected=true]{background:var(--fill);box-shadow:none}
  .settings-nav .settings-admin-link{margin:0;padding:9px 10px;gap:4px;flex:none;border-left:1px solid var(--separator);border-radius:0}
  .settings-content{padding:22px 20px;overflow:visible}.settings-content h3{margin-bottom:8px}.settings-row{gap:12px;padding:18px 0}.settings-row p{font-size:11px}.settings-row h4{font-size:12px}.settings-row .segmented{width:180px}.settings-row .segmented button{font-size:11px}
+ #email-row{flex-wrap:wrap}.settings-row-actions{width:100%;justify-content:flex-start}
  .users-content{padding:18px 16px;max-height:calc(94dvh - 90px)}.users-toolbar{margin-bottom:16px}.users-columns,.user-list-row{grid-template-columns:minmax(0,1fr) 55px;gap:9px}.users-columns span:nth-child(2),.user-song-count{display:none}
  .user-list-row{padding:14px 2px}.users-columns{padding-left:2px;padding-right:2px}.user-list-identity{gap:8px}.user-list-identity>.avatar{width:28px;height:28px}.user-list-identity strong{font-size:11px}.user-manage-label{font-size:11px}.user-manage-label span{margin-left:1px}
  .user-profile h3{font-size:14px}.grant-form{align-items:flex-start;flex-direction:column;gap:10px}.grant-form>div{width:100%}.grant-form select{flex:1}.user-profile .field-hint{font-size:11px}
@@ -642,6 +645,7 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
 @media(max-width:360px){.settings-nav{padding:8px;gap:3px}.settings-nav button,.settings-nav .settings-admin-link{font-size:11px;padding:8px 7px}.settings-nav .settings-admin-link span{display:none}.settings-row .segmented{width:160px}.settings-content{padding:20px 16px}}
 
 .forgot-link{display:block;margin:10px 2px 0 auto;font-size:13px}
+.forgot-recovery-link{display:block;margin:10px 2px 0 auto;font-size:13px}
 #auth-password2-wrap{margin-top:1px}
 .access-fields .form-status:not(:empty){margin:12px 0 0;line-height:1.45}
 .verify-banner{position:fixed;z-index:60;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:9px 10px 9px 16px;border-radius:99px;background:var(--text,#1d1d1f);color:var(--bg,#fff);font-size:13.5px;box-shadow:0 8px 28px rgba(0,0,0,.18)}
