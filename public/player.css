@@ -51,16 +51,18 @@ input[type=checkbox]{accent-color:var(--accent)}
 .player-brand img.album-cover{object-fit:cover;aspect-ratio:1;filter:none!important;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .song-caption{flex:1;min-width:0}
 .song-caption strong{display:block;overflow:hidden;font-size:15px;font-weight:650;letter-spacing:-.015em;text-overflow:ellipsis;white-space:nowrap}
-.song-caption>span{display:block;overflow:hidden;margin-top:1px;color:var(--text-2);font-size:12.5px;text-overflow:ellipsis;white-space:nowrap}
-.song-caption>span:empty{display:none}
+.song-caption-sub{display:flex;align-items:center;gap:8px;min-width:0;margin-top:1px;color:var(--text-2);font-size:12.5px;white-space:nowrap}
+#player-artist{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#player-artist:empty{display:none}
 .header-actions{display:flex;align-items:center;gap:6px;flex:none}
 .header-actions a,.quiet-button{display:flex;align-items:center;justify-content:center;gap:7px;min-width:40px;height:36px;padding:0 13px;border-radius:99px;background:var(--control);color:var(--text);text-decoration:none;font-size:13px;font-weight:550;transition:background .15s,color .15s}
 .header-actions a:hover,.quiet-button:hover{background:var(--control-hover)}
 .header-actions .song-report{min-width:0;height:auto;padding:0 2px;background:none;color:var(--text-2);font-size:11.5px;font-weight:500;text-decoration:underline;text-underline-offset:2px}
 .header-actions .song-report:hover{background:none;color:var(--text)}
 .player-brand{position:relative}
-.song-caption .cover-credit{display:block;margin-top:2px;color:var(--text-3);font-size:9px;line-height:1.15;text-decoration:none}
-.song-caption .cover-credit::before{content:"Album art: "}
+.song-caption .cover-credit{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;max-width:100%;margin-top:0;color:var(--text-3);font-size:11px;line-height:1.2;text-decoration:none;white-space:nowrap}
+.song-caption .cover-credit-text{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.song-caption .cover-credit .credit-arrow{flex:none;width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .song-caption .cover-credit:hover{color:var(--text-2);text-decoration:underline}
 .song-caption .cover-credit[hidden]{display:none}
 #toggle-hand-guide[aria-pressed=true]{background:var(--accent);color:#fff}
@@ -219,7 +221,7 @@ input[type=checkbox]{accent-color:var(--accent)}
 @media (max-width:700px){
   .player-header{min-height:54px;gap:10px;padding-inline:max(12px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-right))}
   .song-caption strong{font-size:14px}
-  .song-caption>span{font-size:11.5px}
+  .song-caption-sub{font-size:11.5px}
   .player-brand img{width:26px;height:26px}
   .header-actions a>span,.quiet-button>span{display:none}
   .header-actions a,.quiet-button{width:40px;padding:0}
@@ -252,9 +254,13 @@ input[type=checkbox]{accent-color:var(--accent)}
   #close-hand-guide{position:absolute;top:10px;right:10px}
   .toast{bottom:124px}
 }
+@media (max-width:480px){
+  .song-caption-sub{flex-wrap:wrap;gap:0 8px}
+  .song-caption .cover-credit{flex-basis:100%}
+}
 @media (max-height:560px){
   .player-header{min-height:40px;padding-block:2px}
-  .song-caption>span{display:none}
+  #player-artist{display:none}
   .practice-toolbar-inner{min-height:38px;padding-block:2px}
   .tool-button,.settings-action,.repeat-button,.header-actions a,.quiet-button{height:32px}
   .play-button{width:40px;height:40px}

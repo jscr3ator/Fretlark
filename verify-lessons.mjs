@@ -16,7 +16,7 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
  if(algorithm.name==='PBKDF2')assert.ok(algorithm.iterations<=100000,'Workers PBKDF2 iteration limit exceeded');
  return deriveBits(algorithm,...args);
 };
-const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
 const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
@@ -186,6 +186,7 @@ assert.equal((await call('auth/password',{method:'POST',headers:{},body:password
 assert.equal((await call('auth/password',{method:'POST',headers:{...passwordTeacher,origin:'https://attacker.test'},body:passwordBody})).status,403);
 assert.equal((await call('auth/password',{method:'POST',headers:passwordTeacher,body:{...passwordBody,current_password:'wrong'}})).status,401);
 assert.equal((await call('auth/password',{method:'POST',headers:passwordTeacher,body:{...passwordBody,new_password:'short'}})).status,400);
+{const {validPassword}=await import('./lib/teacher-auth.mjs');assert.equal(validPassword('eightchr'),true,'8 characters is enough');assert.equal(validPassword('sevench'),false);}
 const changedPassword=await call('auth/password',{method:'POST',headers:passwordTeacher,body:passwordBody});
 assert.equal(changedPassword.status,200);assert.match(changedPassword.cookie,/HttpOnly; Secure; SameSite=Lax/);
 assert.equal((await call('session',{headers:passwordTeacher})).data.authenticated,false);
@@ -271,8 +272,10 @@ assert.equal((await call('auth/login',{method:'POST',headers:{},body:{email:'man
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'restore'}})).status,200);
 assert.equal((await call(`shared/${managedShare.share_token}`,{headers:{}})).status,200);
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'delete',confirm_email:'wrong'}})).status,400);
+sql.prepare('INSERT INTO account_delete_codes (teacher_id,code_hash,attempts,expires_at,created_at) VALUES (?,?,0,?,?)').run(managedId,'0'.repeat(64),Date.now()+60000,Date.now());
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'delete',confirm_email:'managed@example.test'}})).status,200);
 assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM lessons WHERE owner_id=?').get(managedId).n,0);
+assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM account_delete_codes WHERE teacher_id=?').get(managedId).n,0,'Owner deletion clears pending deletion codes');
 assert.equal((await call(`shared/${managedShare.share_token}`,{headers:{}})).status,404);
 sql.prepare('DELETE FROM auth_limits').run();
 const secondOwnerLogin=await call('auth/login',{method:'POST',headers:{},body:{email:'new',password:'replacement strong password'}});

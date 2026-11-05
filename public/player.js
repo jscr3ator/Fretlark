@@ -12,15 +12,18 @@ function coverCreditUrl(value){
  try{const url=new URL(value);return url.protocol==='https:'&&['music.apple.com','deezer.com','www.deezer.com'].includes(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:null;}catch{return null;}
 }
 function hideCoverCredit(){
- if(typeof document==='undefined')return;const credit=document.getElementById('player-cover-credit');if(credit)credit.hidden=true;
+ if(typeof document==='undefined')return;const credit=document.getElementById('player-cover-credit');if(credit){credit.hidden=true;credit.removeAttribute('href');}
 }
 function setCoverCredit(artwork){
- if(typeof document==='undefined'||!coverImage?.parentElement)return;
+ if(typeof document==='undefined')return;
  const url=coverCreditUrl(artwork?.sourceUrl),label=artwork?.source==='Deezer'?'Deezer':artwork?.source==='Apple Music'?'Apple Music':null;
  if(!url||!label){hideCoverCredit();return;}
- let credit=document.getElementById('player-cover-credit');
- if(!credit){credit=document.createElement('a');credit.id='player-cover-credit';credit.className='cover-credit';credit.target='_blank';credit.rel='noopener noreferrer';(document.querySelector('.song-caption')||coverImage.parentElement).appendChild(credit);}
- credit.href=url;credit.textContent=label;credit.setAttribute('aria-label',`Album art: ${label}`);credit.title=`Album art: ${label}`;credit.hidden=false;
+ const credit=document.getElementById('player-cover-credit');
+ if(!credit)return;
+ credit.href=url;
+ const text=credit.querySelector('.cover-credit-text');
+ if(text)text.textContent=`Artwork · ${label}`;else credit.textContent=`Artwork · ${label}`;
+ credit.setAttribute('aria-label',`Album artwork from ${label} (opens in a new tab)`);credit.title=`Album artwork from ${label}`;credit.hidden=false;
 }
 function retryCover(generation,delay){
  if(generation!==coverGeneration||coverRetries>=2||coverRetryTimer)return;
@@ -52,7 +55,9 @@ function syncCover(retry=false){
    if(generation!==coverGeneration)return;
    coverImage.onerror=()=>{if(generation===coverGeneration){resetCover();retryCover(generation);}};
    coverImage.referrerPolicy='no-referrer';coverImage.alt='';coverImage.src=preload.src;
-   coverImage.classList.add('album-cover');coverImage.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;setCoverCredit(artwork);
+   coverImage.classList.add('album-cover');
+   const label=artwork.source==='Deezer'?'Deezer':artwork.source==='Apple Music'?'Apple Music':null;
+   coverImage.title=label?`Album artwork from ${label}`:`${artwork.album} · ${artwork.artist}`;setCoverCredit(artwork);
   };
   preload.src=url.href;
  }).catch(error=>retryCover(generation,error?.retryDelay));

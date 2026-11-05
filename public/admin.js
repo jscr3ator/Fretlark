@@ -215,7 +215,7 @@
     $('forgot-recovery-link').hidden = !forgotEmail;
     $('reset-back').hidden = true;
     $('auth-password').autocomplete = newPassword ? 'new-password' : 'current-password';
-    $('auth-password').minLength = newPassword ? 12 : 0;
+    $('auth-password').minLength = newPassword ? 8 : 0;
     $('auth-password').type = 'password';
     $('password-toggle').setAttribute('aria-pressed', 'false');
     $('password-toggle').setAttribute('aria-label', 'Show password');
@@ -341,7 +341,7 @@
     return song && {...localCoverSource(song), local_id: song.id, track_count: song.tracks, bar_count: song.bars, tempo: song.tempo, updated_at: song.updatedAt};
   }
   function coverHtml(lesson, className) {
-    return `<span class="${className} cover" style="${coverStyle(lesson)}" data-cover-id="${esc(lesson.id)}" data-cover-key="${esc(JSON.stringify([lesson.id, lesson.title, lesson.artist]))}"><span class="cover-monogram">${monogram(lesson)}</span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></span>`;
+    return `<span class="${className} cover" style="${coverStyle(lesson)}" data-cover-id="${esc(lesson.id)}" data-cover-key="${esc(JSON.stringify([lesson.id, lesson.title, lesson.artist]))}"><span class="cover-monogram">${monogram(lesson)}</span><img src="/admin-assets/doc.svg" alt=""></span>`;
   }
 
   // Plain-language summary of what a shared link lets students see and use.
@@ -384,7 +384,7 @@
     $('local-songs').innerHTML = songs.map(song => `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="local:${esc(song.id)}">${coverHtml(localCoverSource(song), 'link-cover')}<span><strong>${esc(song.title || 'Untitled song')}</strong><small>${esc([song.artist, `${song.bars || 0} bars`, `edited ${ago(song.updatedAt)}`].filter(Boolean).join(' · '))}</small></span></div><div class="local-actions"><button class="button" type="button" data-local-cloud="${esc(song.id)}" ${localCloudSaves.has(song.id)?'disabled':''}>${localCloudSaves.has(song.id)?'Saving…':'Save to cloud'}</button><a class="button" href="/editor/index.html?local=${encodeURIComponent(song.id)}">Edit</a><button class="icon-button" type="button" data-local-remove="${esc(song.id)}" aria-label="Remove ${esc(song.title || 'song')} from this browser"><svg class="icon"><use href="#i-trash"/></svg></button></div></div>`).join('');
   }
   document.addEventListener('click', event => {
-    if (event.target.closest('.cover-credit')) event.stopPropagation();
+    if (event.target.closest('.cover-caption')) event.stopPropagation();
   }, true);
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-local-remove]');
@@ -429,17 +429,24 @@
   function coverCreditUrl(value){
     try{const url=new URL(value);return url.protocol==='https:'&&['music.apple.com','deezer.com','www.deezer.com'].includes(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:null;}catch{return null;}
   }
+  function coverCreditLabel(artwork){
+    return artwork?.source==='Deezer'?'Deezer':artwork?.source==='Apple Music'?'Apple Music':null;
+  }
   function hideCoverCredit(node){
-    const credit=node?.querySelector?.('.cover-credit');if(credit)credit.hidden=true;
+    if(node?.id!=='selected-cover')return;
+    const credit=$('selected-cover-credit');if(!credit)return;
+    credit.hidden=true;credit.removeAttribute('href');
   }
   function showCoverCredit(node,artwork){
-    const credit=node?.querySelector?.('.cover-credit');if(!credit)return;
-    const url=coverCreditUrl(artwork?.sourceUrl),label=artwork?.source==='Deezer'?'Deezer':artwork?.source==='Apple Music'?'Apple Music':null;
-    if(!url||!label){credit.hidden=true;return;}
-    credit.href=url;credit.textContent=label;credit.dataset.source=label;credit.setAttribute('aria-label',`Album art: ${label}`);credit.hidden=false;
+    if(node?.id!=='selected-cover')return;
+    const credit=$('selected-cover-credit');if(!credit)return;
+    const url=coverCreditUrl(artwork?.sourceUrl),label=coverCreditLabel(artwork);
+    if(!url||!label){credit.hidden=true;credit.removeAttribute('href');return;}
+    credit.href=url;credit.querySelector('.cover-caption-text').textContent=`Artwork · ${label}`;
+    credit.setAttribute('aria-label',`Album artwork from ${label} (opens in a new tab)`);credit.hidden=false;
   }
   function applyCover(node,artwork){
-    if(!artwork)return;
+    if(!artwork){hideCoverCredit(node);return;}
     const image=node.querySelector('img');if(!image)return;
     const key=node.dataset.coverKey;
     let fallback;try{const url=new URL(artwork.fallbackUrl);if(url.protocol==='https:'&&/^(?:is\d+-ssl\.mzstatic\.com|(?:e-cdns|cdn)-images\.dzcdn\.net)$/.test(url.hostname)&&!url.port&&!url.username&&!url.password&&url.href!==artwork.url)fallback=url.href;}catch{}
@@ -450,7 +457,8 @@
       image.onload=null;image.onerror=null;node.classList.remove('has-cover');hideCoverCredit(node);image.src='/admin-assets/doc.svg';node.removeAttribute('title');retryCover(key);
     };
     image.referrerPolicy='no-referrer';image.decoding='async';image.alt='';image.src=artwork.url;
-    node.title=`${artwork.album} · ${artwork.artist} · ${artwork.source}`;
+    const label=coverCreditLabel(artwork);
+    node.title=label?`Album artwork from ${label}`:`${artwork.album} · ${artwork.artist}`;
   }
   function queueCover(node){
     const key=node.dataset.coverKey;
@@ -718,7 +726,7 @@
 
   async function submitRecovery(username, password) {
     const submit = $('auth-submit');
-    if (password.length < 12 || password.length > 1024) return status('auth-status', 'Use a password between 12 and 1024 characters.', true);
+    if (password.length < 8 || password.length > 1024) return status('auth-status', 'Use a password between 8 and 1024 characters.', true);
     if (password !== $('auth-password2').value) return status('auth-status', 'The passwords do not match.', true);
     submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
     submit.textContent = 'Resetting…';
@@ -763,7 +771,7 @@
 
   async function submitNewPassword(password) {
     const submit = $('auth-submit');
-    if (password.length < 12 || password.length > 1024) return status('auth-status', 'Use a new password of 12 to 1024 characters.', true);
+    if (password.length < 8 || password.length > 1024) return status('auth-status', 'Use a new password of 8 to 1024 characters.', true);
     if (password !== $('auth-password2').value) return status('auth-status', 'The passwords do not match.', true);
     submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
     submit.textContent = 'Saving…';
@@ -791,8 +799,8 @@
     if (authMode === 'forgot' && sessionState.mailEnabled && forgotMethod === 'email') return submitForgotRequest(identifier);
     if (authMode === 'forgot') return submitRecovery(identifier, password);
     if (authMode === 'reset') return submitNewPassword(password);
-    if (authMode === 'register' && (password.length < 12 || password.length > 1024)) {
-      status('auth-status', 'Use a password between 12 and 1024 characters.', true);
+    if (authMode === 'register' && (password.length < 8 || password.length > 1024)) {
+      status('auth-status', 'Use a password between 8 and 1024 characters.', true);
       return;
     }
     if (authMode === 'register' && password !== $('auth-password2').value) {
@@ -831,7 +839,7 @@
     event.preventDefault();
     if(savingPassword) return;
     const current_password=$('current-password').value,new_password=$('new-password').value;
-    if(new_password.length<12 || new_password.length>1024) return status('password-status','Use a password of 12 to 1024 characters.',true);
+    if(new_password.length<8 || new_password.length>1024) return status('password-status','Use a password of 8 to 1024 characters.',true);
     if(new_password!==$('confirm-password').value) return status('password-status','New passwords do not match.',true);
     savingPassword=true;
     const controls=[...$('password-form').querySelectorAll('button,input')];

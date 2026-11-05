@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=20de7ca889e4">
+  <link rel="stylesheet" href="/admin.css?v=4a54fef46121">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -64,7 +64,7 @@
             <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="1024" placeholder="Password" required><button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 4 16 16"/></svg></button></div>
             <div class="password-field" id="auth-password2-wrap" hidden><input id="auth-password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" placeholder="Confirm new password"></div>
           </div>
-          <p id="password-hint" class="field-hint" hidden>Use at least 12 characters.</p>
+          <p id="password-hint" class="field-hint" hidden>Use at least 8 characters.</p>
           <button id="forgot-link" class="text-button forgot-link" type="button">Forgot password?</button>
           <button id="forgot-recovery-link" class="text-button forgot-recovery-link" type="button" hidden>Use my recovery key instead</button>
           <button id="reset-back" class="text-button forgot-recovery-link" type="button" hidden>Back to forgot password</button>
@@ -170,7 +170,10 @@
         <div id="song-content" hidden>
           <nav class="song-mobile-nav" aria-label="Song navigation"><button id="detail-back" class="text-button back-button" type="button"><svg class="icon"><use href="#i-back"/></svg>Library</button></nav>
           <header class="song-header">
-            <div id="selected-cover" class="selected-cover cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></div>
+            <div class="selected-cover-wrap">
+              <div id="selected-cover" class="selected-cover cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></div>
+              <a id="selected-cover-credit" class="cover-caption" target="_blank" rel="noopener noreferrer" hidden><span class="cover-caption-text"></span><svg class="credit-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></a>
+            </div>
             <div class="song-info">
               <div class="song-heading">
                 <span class="song-sharing"><svg class="icon icon-private"><use href="#i-lock"/></svg><svg class="icon icon-shared"><use href="#i-link"/></svg><span id="selected-state"></span></span>
@@ -264,7 +267,7 @@
       </section>
       <section id="user-create" hidden>
         <button class="text-button users-back" type="button" data-users-back>‹ All users</button><h3>Add user</h3>
-        <form id="user-create-form"><label class="field-label" for="user-email">Username</label><input id="user-email" type="text" autocomplete="off" autocapitalize="none" maxlength="254" required><label class="field-label" for="user-password">Initial password</label><input id="user-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required><p class="field-hint">12 characters minimum. Share securely with the user.</p><div class="dialog-actions"><button class="button" type="button" data-users-back>Cancel</button><button class="button primary" type="submit">Create account</button></div></form>
+        <form id="user-create-form"><label class="field-label" for="user-email">Username</label><input id="user-email" type="text" autocomplete="off" autocapitalize="none" maxlength="254" required><label class="field-label" for="user-password">Initial password</label><input id="user-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required><p class="field-hint">8 characters minimum. Share securely with the user.</p><div class="dialog-actions"><button class="button" type="button" data-users-back>Cancel</button><button class="button primary" type="submit">Create account</button></div></form>
       </section>
       <p id="users-status" class="form-status" role="status" aria-live="polite"></p>
     </div>
@@ -288,9 +291,9 @@
     <form id="password-form">
       <div class="dialog-head"><h2 id="password-title">Change password</h2><button class="icon-button" type="button" data-close="password-dialog" aria-label="Close password settings"><svg class="icon"><use href="#i-close"/></svg></button></div>
       <label class="field-label" for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password" maxlength="1024" required>
-      <label class="field-label" for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required aria-describedby="new-password-hint">
-      <p id="new-password-hint" class="field-hint">At least 12 characters. Other devices will be signed out.</p>
-      <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required>
+      <label class="field-label" for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required aria-describedby="new-password-hint">
+      <p id="new-password-hint" class="field-hint">At least 8 characters. Other devices will be signed out.</p>
+      <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required>
       <p id="password-status" class="form-status" role="status" aria-live="polite"></p>
       <div class="dialog-actions"><button class="button" type="button" data-close="password-dialog">Cancel</button><button id="password-submit" class="button primary" type="submit">Update Password</button></div>
     </form>
@@ -311,12 +314,20 @@
   <dialog id="delete-account-dialog" aria-labelledby="delete-account-title">
     <form id="delete-account-form">
       <div class="dialog-head"><h2 id="delete-account-title">Delete account</h2><button class="icon-button" type="button" data-close="delete-account-dialog" aria-label="Close account deletion"><svg class="icon"><use href="#i-close"/></svg></button></div>
-      <p class="field-hint">This permanently deletes your account and every song saved in the cloud. Songs saved only on this device stay in this browser. This cannot be undone.</p>
-      <label class="field-label" for="delete-account-confirm">Type your username to confirm</label><input id="delete-account-confirm" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required>
-      <label class="field-label" for="delete-account-password">Current password</label><input id="delete-account-password" type="password" autocomplete="current-password" maxlength="1024" required>
-      <div id="delete-account-factor" hidden><label class="field-label" for="delete-account-code">Authenticator or recovery code</label><input id="delete-account-code" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div>
+      <div id="delete-account-step-one">
+        <p class="field-hint">This permanently deletes your account and every song saved in the cloud. Songs saved only on this device stay in this browser. This cannot be undone.</p>
+        <label class="field-label" for="delete-account-confirm">Type your username to confirm</label><input id="delete-account-confirm" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required>
+        <label class="field-label" for="delete-account-password">Current password</label><input id="delete-account-password" type="password" autocomplete="current-password" maxlength="1024" required>
+        <div id="delete-account-factor" hidden><label class="field-label" for="delete-account-otp">Authenticator or recovery code</label><input id="delete-account-otp" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div>
+      </div>
+      <div id="delete-account-step-two" hidden>
+        <p id="delete-account-sent" class="field-hint"></p>
+        <label class="field-label" for="delete-account-verify-code">6-digit code</label>
+        <input id="delete-account-verify-code" class="otp-input" type="text" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+        <button id="delete-account-resend" class="text-button" type="button">Send a new code</button>
+      </div>
       <p id="delete-account-status" class="form-status" role="status" aria-live="polite"></p>
-      <div class="dialog-actions"><button class="button" type="button" data-close="delete-account-dialog">Cancel</button><button id="delete-account-submit" class="button danger" type="submit" disabled>Delete my account</button></div>
+      <div class="dialog-actions"><button class="button" type="button" data-close="delete-account-dialog">Cancel</button><button id="delete-account-submit" class="button danger" type="submit" disabled>Email me a code</button></div>
     </form>
   </dialog>
 
@@ -432,7 +443,7 @@
   <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-heading">
     <div class="dialog-head share-head"><h2 id="share-heading">Share</h2><button class="icon-button" type="button" data-close="share-dialog" aria-label="Close sharing"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <div class="share-body">
-      <div class="shared-song"><span id="share-cover" class="share-document cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""><a class="cover-credit" target="_blank" rel="noopener noreferrer" hidden></a></span><div><h3 id="share-title"></h3><p id="share-artist"></p></div></div>
+      <div class="shared-song"><span id="share-cover" class="share-document cover"><span class="cover-monogram"></span><img src="/admin-assets/doc.svg" alt=""></span><div><h3 id="share-title"></h3><p id="share-artist"></p></div></div>
       <section id="link-card" class="link-card">
         <label class="link-toggle"><span class="link-toggle-icon" aria-hidden="true"><svg class="icon"><use href="#i-link"/></svg></span><span class="link-toggle-copy"><strong>Share link</strong><small id="share-access-note"></small></span><input id="share-enabled" type="checkbox" role="switch" aria-describedby="share-access-note"></label>
         <div class="link-details"><div class="link-details-inner">
@@ -472,7 +483,7 @@
   <script src="/admin-preview.js?v=a03b1950e8d5"></script>
   <script src="/local-songs.js?v=d693a1bd3639"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=badefdba0ef8"></script>
-  <script src="/admin.js?v=f952d72ec18a"></script>
+  <script src="/account-settings.js?v=058c5e320416"></script>
+  <script src="/admin.js?v=4ec827182a84"></script>
 </body>
 </html>

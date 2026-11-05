@@ -4,7 +4,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const status=(id,text,error=false)=>{ $(id).textContent=text;$(id).classList.toggle('error',error); };
   const currentUsername=()=>String(username?.()??'');
-  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,emailBusy=false,emailPending='',users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
+  let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,deleteStep='confirm',deleteNeedsCode=false,deleteTimer=null,deleteCooldownUntil=0,emailBusy=false,emailPending='',users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
   const date=value=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
   const cancelled=()=>Object.assign(new Error('Cancelled'),{name:'AbortError'});
   const report=(id,error)=>{if(error.name!=='AbortError')status(id,error.message,true);};
@@ -80,36 +80,105 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     }catch(error){report('verify-status',error);}finally{$('verify-submit').disabled=false;}
   });
   $('verify-dialog').addEventListener('close',()=>{$('verify-form').reset();verifyPending?.reject(cancelled());verifyPending=null;});
+  const deleteMaskedEmail=()=>emailSession().contactEmail||'your email';
+  const deleteCodeEligible=()=>{const state=emailSession();return state.mailEnabled===true&&state.contactEmailVerified===true&&!!state.contactEmail;};
+  function clearDeleteCooldown(){
+    if(deleteTimer)clearInterval(deleteTimer);deleteTimer=null;deleteCooldownUntil=0;
+    const button=$('delete-account-resend');if(button){button.disabled=false;button.textContent='Send a new code';}
+  }
+  function startDeleteCooldown(){
+    if(deleteTimer)clearInterval(deleteTimer);
+    deleteCooldownUntil=Date.now()+30000;
+    const button=$('delete-account-resend');
+    const tick=()=>{
+      const left=Math.ceil((deleteCooldownUntil-Date.now())/1000);
+      if(left<=0){clearDeleteCooldown();return;}
+      button.disabled=true;button.textContent=`Send a new code (${left}s)`;
+    };
+    tick();deleteTimer=setInterval(tick,1000);
+  }
+  function setDeleteStep(step){
+    deleteStep=step;
+    const two=step==='code';
+    $('delete-account-step-one').hidden=two;$('delete-account-step-two').hidden=!two;
+    $('delete-account-submit').textContent=two||!deleteNeedsCode?'Delete account permanently':'Email me a code';
+    $('delete-account-submit').disabled=deleteBusy||(two?$('delete-account-verify-code').value.trim().length!==6:$('delete-account-confirm').value!==currentUsername());
+    if(two){$('delete-account-sent').textContent=`We sent a 6-digit code to ${deleteMaskedEmail()}.`;$('delete-account-verify-code').focus();}
+  }
   $('delete-account-open').addEventListener('click',()=>{
     if($('delete-account-open').disabled)return;
     closeDialog('account-dialog');$('delete-account-form').reset();
-    $('delete-account-factor').hidden=!security?.mfa_enabled;$('delete-account-code').required=!!security?.mfa_enabled;
-    $('delete-account-submit').disabled=true;status('delete-account-status','');
+    deleteNeedsCode=deleteCodeEligible();
+    $('delete-account-factor').hidden=!security?.mfa_enabled;$('delete-account-otp').required=!!security?.mfa_enabled;
+    $('delete-account-verify-code').required=false;
+    clearDeleteCooldown();status('delete-account-status','');setDeleteStep('confirm');
     openDialog('delete-account-dialog','delete-account-confirm');
   });
   $('delete-account-confirm').addEventListener('input',()=>{
-    $('delete-account-submit').disabled=deleteBusy||$('delete-account-confirm').value!==currentUsername();
+    if(deleteStep==='confirm')$('delete-account-submit').disabled=deleteBusy||$('delete-account-confirm').value!==currentUsername();
   });
-  $('delete-account-form').addEventListener('submit',async event=>{
-    event.preventDefault();if(deleteBusy||$('delete-account-submit').disabled)return;
+  $('delete-account-verify-code').addEventListener('input',()=>{
+    if(deleteStep==='code')$('delete-account-submit').disabled=deleteBusy||$('delete-account-verify-code').value.trim().length!==6;
+  });
+  async function sendDeleteCode(){
+    if(deleteBusy)return;
+    if($('delete-account-confirm').value!==currentUsername()){status('delete-account-status','Type your username to confirm deletion.',true);return;}
+    deleteBusy=true;status('delete-account-status','');
+    const submit=$('delete-account-submit');submit.disabled=true;submit.textContent='Sending…';
+    try{
+      await api('auth/delete-account-code',json('POST',{confirm:$('delete-account-confirm').value,current_password:$('delete-account-password').value,code:$('delete-account-otp').value}));
+      setDeleteStep('code');startDeleteCooldown();
+    }catch(error){
+      report('delete-account-status',error);
+      if(error.code==='reauth_required')setDeleteStep('confirm');
+    }finally{
+      deleteBusy=false;
+      if(deleteStep==='confirm'){
+        submit.textContent=deleteNeedsCode?'Email me a code':'Delete account permanently';
+        submit.disabled=$('delete-account-confirm').value!==currentUsername();
+      }
+    }
+  }
+  async function finishDelete(){
     deleteBusy=true;status('delete-account-status','');
     const controls=[...$('delete-account-form').querySelectorAll('button,input')];
     controls.forEach(control=>control.disabled=true);$('delete-account-submit').textContent='Deleting…';
     try{
-      await api('auth/delete-account',json('POST',{confirm:$('delete-account-confirm').value,current_password:$('delete-account-password').value,code:$('delete-account-code').value}));
+      await api('auth/delete-account',json('POST',{confirm:$('delete-account-confirm').value,current_password:$('delete-account-password').value,code:$('delete-account-otp').value,delete_code:$('delete-account-verify-code').value}));
       try{localStorage.removeItem('score-studio-session');}catch{}
       closeDialog('delete-account-dialog');location.replace('/');
     }catch(error){
       report('delete-account-status',error);controls.forEach(control=>control.disabled=false);
-      $('delete-account-submit').textContent='Delete my account';
-      $('delete-account-submit').disabled=$('delete-account-confirm').value!==currentUsername();
       deleteBusy=false;
+      if(error.code==='reauth_required'){setDeleteStep('confirm');return;}
+      setDeleteStep(deleteStep);
     }
+  }
+  $('delete-account-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(deleteBusy||$('delete-account-submit').disabled)return;
+    if(deleteStep==='confirm'&&deleteNeedsCode)return sendDeleteCode();
+    return finishDelete();
+  });
+  $('delete-account-resend').addEventListener('click',async()=>{
+    if(deleteBusy||$('delete-account-resend').disabled)return;
+    deleteBusy=true;status('delete-account-status','');$('delete-account-resend').disabled=true;
+    try{
+      await api('auth/delete-account-code',json('POST',{confirm:$('delete-account-confirm').value,current_password:$('delete-account-password').value,code:$('delete-account-otp').value}));
+      $('delete-account-sent').textContent=`We sent a 6-digit code to ${deleteMaskedEmail()}.`;
+      $('delete-account-verify-code').value='';$('delete-account-submit').disabled=true;
+      startDeleteCooldown();
+    }catch(error){
+      report('delete-account-status',error);
+      if(error.code==='reauth_required')setDeleteStep('confirm');
+      else if(!deleteTimer)$('delete-account-resend').disabled=false;
+    }finally{deleteBusy=false;}
   });
   $('delete-account-dialog').addEventListener('close',()=>{
     if(deleteBusy)return;
-    $('delete-account-form').reset();$('delete-account-factor').hidden=true;$('delete-account-code').required=false;
-    $('delete-account-submit').disabled=true;$('delete-account-submit').textContent='Delete my account';status('delete-account-status','');
+    clearDeleteCooldown();
+    $('delete-account-form').reset();$('delete-account-factor').hidden=true;$('delete-account-otp').required=false;
+    $('delete-account-step-one').hidden=false;$('delete-account-step-two').hidden=true;
+    $('delete-account-submit').disabled=true;$('delete-account-submit').textContent='Email me a code';status('delete-account-status','');
   });
   $('email-open').addEventListener('click',()=>openEmailDialog('set'));
   $('email-resend').addEventListener('click',()=>openEmailDialog('resend'));
