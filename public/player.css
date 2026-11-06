@@ -319,3 +319,54 @@ input[type=checkbox]{accent-color:var(--accent)}
 .bar-hover-tip{position:absolute;left:50%;top:-26px;transform:translateX(-50%);white-space:nowrap;padding:3px 9px;border-radius:99px;background:#1d1d1f;color:#fff;font:600 11.5px var(--font)}
 #alphatab.bar-clickable{cursor:pointer}
 .bar-hint{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;margin:0;padding:8px 16px;border-radius:99px;background:#1d1d1f;color:#fff;font:600 13px var(--font);box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
+
+/* More menu and song report dialog (shared links only). Only opacity/transform animate. */
+.more-button{width:40px;padding:0}
+.more-menu{position:fixed;inset:58px 16px auto auto;margin:0;min-width:200px;padding:6px;border:0;border-radius:14px;background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.more-menu button{display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:0 12px;border:0;border-radius:9px;background:none;color:var(--text);font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.more-menu button:hover,.more-menu button:focus-visible{background:var(--control)}
+.more-menu svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.report-dialog{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:22px;border:0;border-radius:20px;background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.report-dialog::backdrop{background:rgba(0,0,0,.32)}
+.report-dialog[open]{animation:report-in .2s cubic-bezier(.2,.8,.2,1)}
+@keyframes report-in{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.report-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.report-heading h2,.report-done h2{margin:0;font-size:19px;font-weight:650;letter-spacing:-.015em}
+.report-intro{margin:6px 0 16px;color:var(--text-2);font-size:13.5px;line-height:1.45}
+.report-reasons{display:grid;gap:8px;margin:0;padding:0;border:0}
+.report-reasons label{display:flex;align-items:flex-start;gap:12px;padding:11px 13px;border:1px solid var(--line-strong);border-radius:12px;cursor:pointer;transition:border-color .15s,background-color .15s}
+.report-reasons label:hover{background:var(--control)}
+.report-reasons label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.report-reasons input{flex:none;width:17px;height:17px;margin:1px 0 0;accent-color:var(--accent)}
+.report-reasons span{display:grid;gap:2px;min-width:0}
+.report-reasons strong{font-size:14px;font-weight:600}
+.report-reasons small{color:var(--text-2);font-size:12.5px;line-height:1.35}
+.report-field{display:grid;gap:6px;margin-top:14px;font-size:13px;font-weight:600}
+.report-field small{margin-left:4px;color:var(--text-3);font-weight:400}
+.report-field textarea,.report-field input{width:100%;padding:11px 13px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface);color:var(--text);font:inherit;font-size:16px;font-weight:400;resize:vertical}
+.report-field input{height:46px}
+.report-field textarea:focus,.report-field input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.report-status:empty{display:none}
+.report-status{margin:12px 0 0;padding:9px 12px;border-radius:10px;background:var(--control);font-size:13px}
+.report-status.error{color:var(--danger);background:rgba(215,0,21,.08)}
+.report-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.report-cancel,.report-submit{height:42px;padding:0 18px;border:0;border-radius:11px;font:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+.report-cancel{background:var(--control);color:var(--text)}
+.report-cancel:hover{background:var(--control-hover)}
+.report-submit{background:var(--accent);color:#fff}
+.report-submit:hover{background:var(--accent-hover)}
+.report-submit:disabled{opacity:.6;cursor:default}
+.report-note{margin:14px 0 0;color:var(--text-3);font-size:11.5px;line-height:1.45}
+.report-note a{color:var(--text-2)}
+.report-done{display:grid;justify-items:center;gap:8px;padding:12px 0 4px;text-align:center}
+.report-done[hidden]{display:none}
+.report-done svg{width:44px;height:44px;fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.report-done p{margin:0 0 10px;color:var(--text-2);font-size:14px}
+.report-done .report-submit{min-width:120px}
+@media (max-width:700px){
+  .report-dialog{width:100%;max-width:none;max-height:min(88dvh,720px);margin:auto 0 0;padding:20px 18px max(20px,env(safe-area-inset-bottom));border-radius:20px 20px 0 0}
+  .report-dialog[open]{animation-name:report-up}
+  .more-menu{inset:52px 12px auto auto}
+}
+@keyframes report-up{from{transform:translateY(24px);opacity:0}}
+@media print{.more-menu,.report-dialog{display:none!important}}

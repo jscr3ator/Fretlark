@@ -16,7 +16,7 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
  if(algorithm.name==='PBKDF2')assert.ok(algorithm.iterations<=100000,'Workers PBKDF2 iteration limit exceeded');
  return deriveBits(algorithm,...args);
 };
-const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));sql.exec(readFileSync('drizzle/0012_song_reports.sql','utf8'));sql.exec(readFileSync('drizzle/0013_account_violations.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
 const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
@@ -284,6 +284,91 @@ assert.equal((await call(`shared/${managedShare.share_token}`,{headers:{}})).sta
 assert.equal((await call('auth/login',{method:'POST',headers:{},body:{email:'managed@example.test',password:'managed strong password'}})).status,401);
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'restore'}})).status,200);
 assert.equal((await call(`shared/${managedShare.share_token}`,{headers:{}})).status,200);
+// Song reports: public form on share links, owner-only review.
+{
+ const t=managedShare.share_token,visitor={'cf-connecting-ip':'198.51.100.7'};
+ const report=(body,headers=visitor)=>call(`shared/${t}/report`,{method:'POST',headers,body});
+ assert.equal((await report({reason:'copyright',details:'This is my transcription.'},{...visitor,origin:'https://attacker.test'})).status,403,'Reports must start in Fretlark');
+ assert.equal((await report({reason:'spam'})).status,400,'Unknown reasons are rejected');
+ assert.equal((await report({reason:'copyright',details:'short'})).status,400,'Copyright reports need details');
+ assert.equal((await report({reason:'inappropriate',contact:'not-an-email'})).status,400,'Contact must be an email');
+ assert.equal((await report({reason:'copyright',details:'I own the rights to this arrangement.',contact:'rights@example.test'})).status,201);
+ assert.equal((await report({reason:'copyright',details:'I own the rights to this arrangement.'})).status,201,'Duplicate is accepted');
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM song_reports').get().n,1,'Duplicate from same visitor is stored once');
+ assert.equal((await report({reason:'inappropriate'},{'cf-connecting-ip':'198.51.100.8'})).status,201);
+ const flood={'cf-connecting-ip':'198.51.100.9'},floodHash=sql.prepare("SELECT ip_hash FROM song_reports LIMIT 1").get().ip_hash;
+ for(let i=0;i<5;i++)sql.prepare("INSERT INTO song_reports (id,lesson_id,owner_id,share_token,reason,ip_hash,created_at) VALUES (?,?,?,?,?,?,?)").run('f'.repeat(31)+i,'other','other','x','other',createHash('sha256').update('report:198.51.100.9').digest('hex'),Date.now());
+ assert.equal((await report({reason:'broken'},flood)).status,429,'Reports are rate limited per visitor');
+ sql.prepare("DELETE FROM song_reports WHERE lesson_id='other'").run();
+ assert.ok(floodHash&&!floodHash.includes('198.51'),'Only a hash of the IP is stored');
+ for(const headers of [{},teacher,managedHeaders])assert.equal((await call('owner/reports',{headers})).status,403,'Only the owner sees reports');
+ let list=(await call('owner/reports',{headers:ownerHeaders})).data;
+ assert.equal(list.open,2);assert.equal(list.reports.length,2);
+ const first=list.reports.find(x=>x.reason==='copyright');
+ assert.equal(first.uploader,'managed@example.test');assert.equal(first.link_state,'live');assert.equal(first.contact,'rights@example.test');assert.equal(first.title,'Lantern Road');
+ assert.equal('ip_hash' in first,false,'IP hashes never leave the server');
+ assert.equal((await call(`owner/reports/${first.id}`,{method:'PATCH',headers:{...ownerHeaders,origin:'https://attacker.test'},body:{status:'resolved'}})).status,403);
+ assert.equal((await call(`owner/reports/${first.id}`,{method:'PATCH',headers:ownerHeaders,body:{status:'done'}})).status,400);
+ let changed=(await call(`owner/reports/${first.id}`,{method:'PATCH',headers:ownerHeaders,body:{status:'resolved'}})).data;
+ assert.equal(changed.report.status,'resolved');assert.equal(changed.open,1);
+ assert.equal((await call('owner/reports?status=all',{headers:ownerHeaders})).data.reports.length,2);
+ const second=list.reports.find(x=>x.reason==='inappropriate');
+ changed=(await call(`owner/reports/${second.id}/disable-link`,{method:'POST',headers:ownerHeaders,body:{}})).data;
+ assert.equal(changed.open,0);assert.equal(changed.report.link_state,'off');assert.equal(changed.report.status,'resolved');
+ assert.equal((await call(`shared/${t}`,{headers:{}})).status,404,'Disabling the link takes the song offline');
+ assert.equal((await report({reason:'inappropriate'},{'cf-connecting-ip':'198.51.100.10'})).status,404,'A revoked link cannot be reported');
+ assert.equal((await call(`owner/reports/${first.id}`,{method:'DELETE',headers:ownerHeaders})).status,200);
+ assert.equal((await call('owner/reports?status=all',{headers:ownerHeaders})).data.reports.length,1);
+ assert.equal((await call('owner/reports/zzz',{method:'PATCH',headers:ownerHeaders,body:{status:'open'}})).status,404);
+ // Restore the share so the rest of the suite sees the same state as before.
+ sql.prepare('UPDATE lessons SET shared=1 WHERE share_token=?').run(t);
+}
+// Violations: turning off a reported link can add a strike; three strikes turn off all sharing for the account.
+{
+ sql.prepare('DELETE FROM auth_limits').run();
+ managedLogin=await call('auth/login',{method:'POST',headers:{},body:{email:'managed@example.test',password:'managed strong password'}});
+ managedHeaders={cookie:managedLogin.cookie.split(';')[0]};
+ const songs=[];
+ for(let i=0;i<3;i++){const song=(await call('admin/lessons',{method:'POST',headers:managedHeaders,body:upload()})).data;songs.push((await call(`admin/lessons/${song.id}/share`,{method:'POST',headers:managedHeaders,body:{}})).data);}
+ const strike=async(song,i,violation=true)=>{
+  assert.equal((await call(`shared/${song.share_token}/report`,{method:'POST',headers:{'cf-connecting-ip':`203.0.113.${i}`},body:{reason:'copyright',details:'This copies my published book.'}})).status,201);
+  const id=(await call('owner/reports',{headers:ownerHeaders})).data.reports.find(x=>x.share_token===song.share_token).id;
+  return (await call(`owner/reports/${id}/disable-link`,{method:'POST',headers:ownerHeaders,body:{violation}})).data;
+ };
+ await strike(songs[0],1);
+ let session=(await call('session',{headers:managedHeaders})).data;
+ assert.equal(session.violations.length,1);assert.equal(session.violationLimit,3);assert.equal(session.violations[0].reason,'copyright');assert.equal('report_id' in session.violations[0],false);
+ assert.equal((await call(`admin/lessons/${songs[0].id}/share`,{method:'POST',headers:managedHeaders,body:{}})).status,403,'A taken-down song cannot be shared again');
+ assert.equal((await call(`shared/${songs[1].share_token}`,{headers:{}})).status,200,'Other links stay on below the limit');
+ // Turning off a link without a violation adds nothing.
+ sql.prepare('UPDATE lessons SET shared=1 WHERE id=?').run(songs[2].id);
+ await strike(songs[2],2,false);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM account_violations').get().n,1,'violation:false adds no strike');
+ assert.equal((await call(`admin/lessons/${songs[2].id}/share`,{method:'POST',headers:managedHeaders,body:{}})).status,200,'No strike means the song can be shared again');
+ await strike(songs[1],3);
+ const report=(await call('owner/reports?status=all',{headers:ownerHeaders})).data.reports.find(x=>x.share_token===songs[1].share_token);
+ assert.equal(report.violations,2,'Report cards show the uploader violation count');
+ const third=(await call(`admin/lessons/${songs[2].id}`,{headers:managedHeaders})).data;
+ await strike({share_token:third.share_token},4);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM account_violations WHERE teacher_id=?').get(managedId).n,3);
+ assert.equal((await call(`shared/${managedShare.share_token}`,{headers:{}})).status,404,'Three violations turn off every share link on the account');
+ assert.equal((await call(`admin/lessons/${managedSong.id}/share`,{method:'POST',headers:managedHeaders,body:{}})).status,403,'Three violations block new links');
+ let users=(await call('owner/users',{headers:ownerHeaders})).data.users;
+ const managed=users.find(x=>x.id===managedId);
+ assert.equal(managed.violations.length,3);assert.equal(typeof managed.violations[0].title,'string');
+ assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'remove-violation',violation_id:'nope'}})).status,404);
+ assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'remove-violation',violation_id:managed.violations[0].id}})).status,200);
+ assert.equal((await call(`admin/lessons/${managedSong.id}/share`,{method:'POST',headers:managedHeaders,body:{}})).status,200,'Removing a violation lets the account share again');
+ // The owner's own songs never get violations.
+ const ownSong=(await call('admin/lessons',{method:'POST',headers:ownerHeaders,body:upload()})).data;
+ const ownShare=(await call(`admin/lessons/${ownSong.id}/share`,{method:'POST',headers:ownerHeaders,body:{}})).data;
+ await strike(ownShare,5);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM account_violations WHERE teacher_id=?').get(env.OWNER_ACCOUNT_ID).n,0);
+ await call(`admin/lessons/${ownSong.id}`,{method:'DELETE',headers:ownerHeaders});
+ for(const song of songs)await call(`admin/lessons/${song.id}`,{method:'DELETE',headers:managedHeaders});
+ sql.prepare('DELETE FROM song_reports').run();sql.prepare('DELETE FROM account_violations').run();
+ sql.prepare('UPDATE lessons SET shared=1,share_token=? WHERE id=?').run(managedShare.share_token,managedSong.id);
+}
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'delete',confirm_email:'wrong'}})).status,400);
 sql.prepare('INSERT INTO account_delete_codes (teacher_id,code_hash,attempts,expires_at,created_at) VALUES (?,?,0,?,?)').run(managedId,'0'.repeat(64),Date.now()+60000,Date.now());
 assert.equal((await call('owner/users',{method:'POST',headers:ownerHeaders,body:{...ownerBody,id:managedId,action:'delete',confirm_email:'managed@example.test'}})).status,200);

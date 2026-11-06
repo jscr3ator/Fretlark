@@ -872,6 +872,9 @@
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='o'){e.preventDefault();if(!isViewer)$('open-file').click();return;}
     if(e.key==='Enter'&&e.target.tagName==='INPUT'&&['text','number'].includes(e.target.type)&&Object.hasOwn(noteFields,e.target.id)){e.preventDefault();commitNoteField(e.target.id);e.target.blur();$('alphatab').focus({preventScroll:true});return;}
     if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='e'&&!isViewer&&typeof openPalette==='function'&&!e.target.closest?.('dialog')){e.preventDefault();openPalette();return;}
+    // Space is always play / pause, even when a toolbar button or toggle still has focus,
+    // except while typing in a text field or using an open dialog or menu.
+    if(e.code==='Space'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!spaceTyping(e.target)&&!e.target.closest?.('dialog,:popover-open')){e.preventDefault();if(!e.repeat){document.querySelectorAll(':popover-open').forEach(menu=>menu.hidePopover());$('btn-play').click();}return;}
     if(typing||e.target.closest?.('dialog'))return;
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();$('btn-copy-bar').click();return;}
     if(e.key==='Delete'&&(e.ctrlKey||e.metaKey)&&!isViewer&&check('editor-mode')){e.preventDefault();mutate(s=>M.removeBar(s,selected.bar),'Bar deleted');return;}
@@ -879,7 +882,6 @@
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();$('btn-paste-bar').click();return;}
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();history(!e.shiftKey);return;}
     if(['F2','F5','F6','F8'].includes(e.key)){e.preventDefault();togglePanel(({F2:'palette',F5:'inspector',F6:'inspector',F8:'mixer'})[e.key]);}
-    else if(e.code==='Space'&&!e.target.closest?.('button,a,summary,[role="button"]')){e.preventDefault();$('btn-play').click();}
     else if(e.shiftKey&&!e.altKey&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();extendRange((barRange?.end??selected.bar)+(e.key==='ArrowRight'?1:-1));}
     else if(e.shiftKey&&e.altKey&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();if(!isViewer)transposeRange(e.key==='ArrowUp'?1:-1);}
     else if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();barRange={anchor:0,end:score.masterBars.length-1};showRange();}
@@ -906,6 +908,10 @@
     else if(e.key==='Insert'&&check('editor-mode')){$('btn-insert-bar').click();}
     else if(check('editor-mode')&&(e.key==='+'||e.key==='='||e.key==='-')){e.preventDefault();const b=curBeat();if(b){set('duration-select',clamp(b.duration*(e.key==='-'?.5:2),1,64));mutate(()=>M.setDuration(curBeat(),Number(val('duration-select'))),'Duration updated',true,undefined,{lightweight:true});}}
   });
+  // Text entry keeps Space for typing; buttons, toggles and checkboxes do not.
+  function spaceTyping(el){return !!el&&(el.isContentEditable||/TEXTAREA|SELECT/.test(el.tagName)||(el.tagName==='INPUT'&&!['checkbox','radio','range','button','submit','reset','color','file'].includes(el.type)));}
+  // A focused button would otherwise fire its click when Space is released.
+  document.addEventListener('keyup',e=>{if(e.code==='Space'&&!spaceTyping(e.target)&&!e.target.closest?.('dialog,:popover-open'))e.preventDefault();});
   const drop=$('score-scroll');drop?.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag-over');});drop?.addEventListener('dragleave',()=>drop.classList.remove('drag-over'));drop?.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag-over');openFile(e.dataTransfer.files[0]);});
   window.addEventListener('beforeunload',e=>{if(!isViewer&&(dirty||openedDocuments.some((d,i)=>i!==documentIndex&&d.dirty))){clearTimeout(saveTimer);saveDraft();if(dirty||openedDocuments.some((d,i)=>i!==documentIndex&&d.dirty)){e.preventDefault();e.returnValue='';}}});
   api.error.on(e=>{cancelEditRefresh();busy(false);status('Playback engine error');toast(e.message||String(e),true);console.error(e);});

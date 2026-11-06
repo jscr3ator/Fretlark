@@ -5,6 +5,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   const status=(id,text,error=false)=>{ $(id).textContent=text;$(id).classList.toggle('error',error); };
   const currentUsername=()=>String(username?.()??'');
   let security=null,verifyPending=null,confirmPending=null,busy=false,mfaBusy=false,deleteBusy=false,deleteStep='confirm',deleteNeedsCode=false,deleteTimer=null,deleteCooldownUntil=0,emailBusy=false,emailPending='',users=[],page=0,hasMore=false,selected=null,searchTimer,requestId=0,codes=[];
+  const reasonNames={copyright:'Copyright',inappropriate:'Inappropriate',broken:"Doesn't work",other:'Other'};
   const date=value=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
   const cancelled=()=>Object.assign(new Error('Cancelled'),{name:'AbortError'});
   const report=(id,error)=>{if(error.name!=='AbortError')status(id,error.message,true);};
@@ -238,7 +239,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     status('users-status','');
   }
   function renderUsers(){
-    $('users-list').innerHTML=users.length?`<div class="users-columns" aria-hidden="true"><span>Account</span><span>Songs</span><span></span></div>`+users.map(user=>`<button class="user-list-row" type="button" data-manage-id="${esc(user.id)}" aria-label="Manage ${esc(user.email)}"><span class="user-list-identity"><span class="avatar" aria-hidden="true">${esc(user.email[0].toUpperCase())}</span><span><strong>${esc(user.email)}</strong><small>${user.owner?'Owner':user.suspended?'Suspended':'Active'}</small></span></span><span class="user-song-count">${user.songs}</span><span class="user-manage-label">Manage <span aria-hidden="true">›</span></span></button>`).join(''):'<p class="users-empty">No users found.</p>';
+    $('users-list').innerHTML=users.length?`<div class="users-columns" aria-hidden="true"><span>Account</span><span>Songs</span><span></span></div>`+users.map(user=>`<button class="user-list-row" type="button" data-manage-id="${esc(user.id)}" aria-label="Manage ${esc(user.email)}"><span class="user-list-identity"><span class="avatar" aria-hidden="true">${esc(user.email[0].toUpperCase())}</span><span><strong>${esc(user.email)}</strong><small>${user.owner?'Owner':user.suspended?'Suspended':'Active'}${user.violations?.length?` · <span class="report-strikes">${user.violations.length} ${user.violations.length===1?'violation':'violations'}</span>`:''}</small></span></span><span class="user-song-count">${user.songs}</span><span class="user-manage-label">Manage <span aria-hidden="true">›</span></span></button>`).join(''):'<p class="users-empty">No users found.</p>';
     $('users-pagination').hidden=page===0&&!hasMore;$('users-prev').disabled=page===0;$('users-next').disabled=!hasMore;$('users-page').textContent=`Page ${page+1}`;
   }
   function renderSelected(){
@@ -246,9 +247,14 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
     $('user-avatar').textContent=selected.email[0].toUpperCase();$('user-detail-email').textContent=selected.email;
     $('user-detail-meta').textContent=`${selected.owner?'Owner · ':''}${selected.songs} ${selected.songs===1?'song':'songs'} · Joined ${date(selected.created_at)}`;
     $('user-access-badge').textContent=selected.suspended?'Suspended':'Active';$('user-access-badge').classList.toggle('is-on',!selected.suspended);
-    $('user-access-detail').textContent=selected.owner?'Owner account is protected.':selected.suspended?'Sign-in and shared links are disabled.':'Can sign in and share songs.';
+    $('user-access-detail').textContent=selected.owner?'Owner account is protected.':selected.suspended?'Sign-in and shared links are disabled.':(selected.violations||[]).length>=3?'Can sign in. Sharing is off after 3 violations.':'Can sign in and share songs.';
     $('user-suspend').hidden=selected.owner;$('user-suspend').textContent=selected.suspended?'Reactivate':'Suspend';
     $('user-revoke').closest('.settings-row').hidden=selected.owner;$('user-delete').hidden=selected.owner;
+    const strikes=selected.violations||[],blocked=strikes.length>=3;
+    $('user-violations-badge').textContent=`${strikes.length} of 3`;$('user-violations-badge').classList.toggle('is-danger',strikes.length>0);
+    $('user-violations-detail').textContent=selected.owner?'The owner account never gets violations.':blocked?'Sharing is off for this account. Remove a violation to let them share again.':strikes.length?'Added when you turned off a reported link. At 3, sharing turns off.':'None. Turning off a reported link can add one.';
+    $('user-violations').hidden=!strikes.length;
+    $('user-violations').innerHTML=strikes.map(item=>`<li><span><strong>${esc(item.title||'Untitled song')}</strong><small>${esc(reasonNames[item.reason]||item.reason)} · ${date(item.created_at)}</small></span><button class="text-button" type="button" data-remove-violation="${esc(item.id)}">Remove</button></li>`).join('');
   }
   async function loadUsers(){
     const request=++requestId,result=await api(`owner/users?q=${encodeURIComponent($('users-search').value)}&page=${page}`);
@@ -278,6 +284,7 @@ window.setupAccountControls = ({api,json,toast,openDialog,closeDialog,loadStorag
   }
   $('user-create-form').addEventListener('submit',event=>{event.preventDefault();ownerAction({action:'create',email:$('user-email').value,password:$('user-password').value},'Account created.');});
   $('user-suspend').addEventListener('click',async()=>{const user=selected;if(!user)return;const action=user.suspended?'restore':'suspend';if(action==='suspend'&&!await confirmAction('Suspend account?',`${user.email} will be signed out. Their shared links will stop working until reactivated.`,null,'Suspend'))return;ownerAction({action,id:user.id},action==='restore'?'Account reactivated.':'Account suspended.');});
+  $('user-violations').addEventListener('click',async event=>{const button=event.target.closest('[data-remove-violation]'),user=selected;if(!button||!user)return;if(await confirmAction('Remove violation?',`Remove this violation from ${user.email}. Links that were turned off stay off, but they can share that song again.`,null,'Remove'))ownerAction({action:'remove-violation',id:user.id,violation_id:button.dataset.removeViolation},'Violation removed.');});
   $('user-revoke').addEventListener('click',()=>{if(selected)ownerAction({action:'revoke-sessions',id:selected.id},'User signed out.');});
   $('user-delete').addEventListener('click',async()=>{const user=selected;if(user&&await confirmAction('Delete account?',`Permanently delete ${user.email} and all their cloud songs. Existing backups expire separately.`,user.email,'Delete account'))ownerAction({action:'delete',id:user.id,confirm_email:user.email},'Account deleted.');});
   $('users-dialog').addEventListener('close',()=>{$('user-create-form').reset();clearTimeout(searchTimer);requestId++;});

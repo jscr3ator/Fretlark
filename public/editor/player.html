@@ -8,7 +8,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <meta name="color-scheme" content="light">
   <title>Shared song — Fretlark</title>
-  <link rel="stylesheet" href="/player.css?v=821e8bf1ab54">
+  <link rel="stylesheet" href="/player.css?v=11d72122270c">
 </head>
 <body class="viewer simple-player">
 <div class="viewer-content">
@@ -20,6 +20,7 @@
     <button type="button" id="btn-print" class="quiet-button" aria-label="Print / PDF" title="Print / PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8V3h12v5M6 18H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/><path d="M18 11h.01"/></svg><span>Print</span></button>
     <button type="button" id="btn-download" class="quiet-button" aria-label="Download file" title="Download file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-8 4-4 4 4M4 14v7h16v-7"/></svg><span>Download</span></button>
     <button type="button" id="toggle-hand-guide" class="quiet-button" aria-label="Fingering" aria-controls="hand-guide" aria-expanded="false" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v12m5-12v12m5-12v12M3 10h18M3 14h18"/></svg><span>Fingering</span></button>
+    <button type="button" id="btn-more" class="quiet-button more-button" aria-label="More options" title="More options" popovertarget="more-menu" aria-haspopup="menu" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
   </div>
 </header>
 <section class="practice-toolbar" aria-label="Practice tools">
@@ -71,6 +72,33 @@
     </div>
   </div>
 </section>
+<div id="more-menu" class="more-menu" popover role="menu" aria-label="More options">
+  <button type="button" id="open-report" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg>Report song</button>
+</div>
+<dialog id="report-dialog" class="report-dialog" aria-labelledby="report-title">
+  <form id="report-form" novalidate>
+    <div class="report-heading"><h2 id="report-title">Report this song</h2><button type="button" class="close-dialog" data-close-report aria-label="Close">×</button></div>
+    <p class="report-intro">Reports go to the Fretlark team, not to the person who shared this link.</p>
+    <fieldset class="report-reasons">
+      <legend class="sr-only">Reason</legend>
+      <label><input type="radio" name="reason" value="copyright"><span><strong>Copyright</strong><small>I own or represent the rights to this music</small></span></label>
+      <label><input type="radio" name="reason" value="inappropriate"><span><strong>Inappropriate</strong><small>Offensive, harmful or spam</small></span></label>
+      <label><input type="radio" name="reason" value="broken"><span><strong>Doesn't work</strong><small>Won't load, play or display properly</small></span></label>
+      <label><input type="radio" name="reason" value="other"><span><strong>Something else</strong></span></label>
+    </fieldset>
+    <label class="report-field"><span>Details</span><textarea id="report-details" name="details" rows="3" maxlength="1000" placeholder="What's wrong? For copyright, say which work is yours."></textarea></label>
+    <label class="report-field"><span>Your email <small>optional, so we can reply</small></span><input id="report-contact" name="contact" type="email" maxlength="254" autocomplete="email" inputmode="email"></label>
+    <p id="report-status" class="report-status" role="status" aria-live="polite"></p>
+    <div class="report-actions"><button type="button" class="report-cancel" data-close-report>Cancel</button><button type="submit" id="report-submit" class="report-submit">Send report</button></div>
+    <p class="report-note">We keep your report and a hashed IP address to prevent abuse.</p>
+  </form>
+  <div id="report-done" class="report-done" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>
+    <h2>Report sent</h2>
+    <p>Thanks. We'll review it soon.</p>
+    <button type="button" class="report-submit" data-close-report>Done</button>
+  </div>
+</dialog>
 <aside id="track-mix-panel" class="mix-panel settings-panel" popover aria-labelledby="mix-title" data-student-mixer>
   <div class="panel-heading"><h2 id="mix-title">Track mix</h2><button type="button" class="close-dialog" popovertarget="track-mix-panel" popovertargetaction="hide" aria-label="Close track mix">×</button></div>
   <label class="volume-setting">Master volume<input id="master-volume" type="range" min="0" max="100" value="75" aria-label="Master volume"></label>
@@ -79,5 +107,5 @@
 </aside>
 <div class="toast" id="toast" role="status" aria-live="polite"></div><span id="score-status" hidden></span><span class="status-help" hidden></span><span class="dock-status" hidden></span><input id="editor-mode" type="checkbox" hidden>
 <div id="metro-pop" class="volume-pop" role="group" aria-label="Metronome volume" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9zm12.5 1.5a3.5 3.5 0 0 1 0 5"/></svg><input id="metro-volume" type="range" min="1" max="100" step="1" value="80" aria-label="Metronome volume"><output id="metro-volume-value">60</output></div>
-<script src="./vendor/alphaTab.js?v=ac899d4f853a"></script><script src="./vendor/fflate.js?v=c3b34f2e9f5e"></script><script src="./model.js?v=636357f054c2"></script><script src="./app.js?v=c3514a2ab46f"></script><script src="./hand-position.js?v=49960e5c5c7b"></script><script src="/player.js?v=574bef101ee1"></script>
+<script src="./vendor/alphaTab.js?v=ac899d4f853a"></script><script src="./vendor/fflate.js?v=c3b34f2e9f5e"></script><script src="./model.js?v=601031319cc9"></script><script src="./app.js?v=5447502643da"></script><script src="./report.js?v=37674090402b"></script><script src="./hand-position.js?v=49960e5c5c7b"></script><script src="/player.js?v=574bef101ee1"></script>
 </body></html>

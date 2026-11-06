@@ -667,6 +667,8 @@
       forgotMethod = session.mailEnabled === true ? forgotMethod : 'recovery';
       $('username-current').textContent = session.email ? `Currently ${session.email}.` : 'Shown on your account.';
       $('manage-users').hidden = session.owner !== true;
+      window.fretlarkReports?.setOwner(session.owner === true);
+      renderViolations(session);
       $('auth-switch').hidden = !registrationOpen;
       const passwordAccount = session.admin && session.authType === 'password';
       localOwner = session.email || 'guest';
@@ -1272,6 +1274,24 @@
       renderShareChoices(lessonSettings());status('share-tracks-status','');
     }catch(error){if(request===shareTrackRequest&&selected?.id===lesson.id)status('share-tracks-status',error.message,true);}
   }
+  // Violations on this account (added when the owner turns off a reported link).
+  let violations = [], violationLimit = 3;
+  const reasonNames = {copyright: 'Copyright', inappropriate: 'Inappropriate', broken: "Doesn't work", other: 'Other'};
+  const sharingBlocked = () => violations.length >= violationLimit;
+  const takenDown = lesson => !!lesson && violations.some(item => item.lesson_id === lesson.id);
+  function renderViolations(session) {
+    violations = Array.isArray(session.violations) ? session.violations : [];
+    violationLimit = session.violationLimit || 3;
+    $('violations-notice').hidden = !violations.length;
+    if (!violations.length) return;
+    $('violations-title').textContent = sharingBlocked() ? 'Sharing is turned off for your account' : `${violations.length} of ${violationLimit} violations`;
+    $('violations-detail').innerHTML = (sharingBlocked()
+      ? 'After repeated reports, your share links were turned off and you can no longer create new ones. Your songs are still in your library.'
+      : `A share link was turned off after a report. Songs taken down can't be shared again. At ${violationLimit} violations, all your share links turn off.`)
+      + ' If you think this was a mistake, contact the person who runs this site.';
+    $('violations-list').innerHTML = violations.map(item => `<li><span><strong>${esc(item.title || 'Untitled song')}</strong><small>${esc(reasonNames[item.reason] || item.reason)} · ${new Date(item.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</small></span></li>`).join('');
+  }
+
   function renderShare() {
     if (!selected) return;
     const active = Boolean(selected.shared);
@@ -1280,8 +1300,10 @@
     syncCover($('share-cover'), selected);
     $('share-artist').textContent = selected.artist || selected.file_name || 'GP file';
     $('share-enabled').checked = active;
+    $('share-enabled').disabled = savingShare || (!active && (sharingBlocked() || takenDown(selected)));
     $('link-card').classList.toggle('is-on', active);
-    $('share-access-note').textContent = active ? 'Anyone with the link can view and play along' : 'Off · only you can open this song';
+    const locked = !active && (sharingBlocked() || takenDown(selected));
+    $('share-access-note').textContent = active ? 'Anyone with the link can view and play along' : locked ? (takenDown(selected) ? 'Taken down after a report · cannot be shared' : 'Sharing is turned off for your account') : 'Off · only you can open this song';
     $('open-link').href = active ? shareUrl(selected) : '#';
     $('share-track-scope').value=settings.allowed_tracks===null?'all':'selected';
     document.querySelectorAll('[name="share-allowed-notation"]').forEach(input=>{input.checked=settings.allowed_notations.includes(input.value);});

@@ -207,6 +207,67 @@ input[type=checkbox]:disabled{opacity:.45;cursor:default}
 }
 @media (prefers-reduced-motion:reduce){.access-card{animation:none}}
 
+/* Song reports (owner only) */
+.settings-nav .settings-admin-link+.settings-admin-link{margin-top:0}
+.reports-link.has-open .report-count{color:var(--danger);font-weight:600}
+.reports-notice{display:flex;align-items:center;gap:14px;width:100%;margin-bottom:16px;padding:14px 18px;border:1px solid var(--separator);border-radius:16px;background:var(--surface);color:var(--label);text-align:left;transition:background-color .15s}
+.reports-notice:hover{background:var(--fill-2)}
+.reports-notice>.icon{flex:none;width:20px;height:20px;color:var(--danger)}
+.reports-notice-copy{display:grid;gap:2px;min-width:0;flex:1}
+.reports-notice-copy strong{font-size:14.5px;font-weight:600}
+.reports-notice-copy small{color:var(--label-2);font-size:12.5px}
+.reports-notice-cta{flex:none;color:var(--accent);font-size:13.5px;font-weight:600}
+.reports-dialog{width:min(720px,calc(100vw - 48px))}
+.reports-toolbar{display:inline-flex;gap:2px;margin-bottom:16px;padding:3px;border-radius:10px;background:var(--fill-2)}
+.reports-toolbar button{height:30px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:var(--label-2);font-size:13px;font-weight:600}
+.reports-toolbar button[aria-selected=true]{background:var(--surface);color:var(--label);box-shadow:var(--shadow-sm)}
+.reports-toolbar [data-report-count]:not(:empty){margin-left:4px;color:var(--danger)}
+.reports-list{display:grid;gap:10px}
+.report-card{padding:16px 18px;border:1px solid var(--separator);border-radius:14px;background:var(--surface)}
+.report-card.is-resolved{opacity:.72}
+.report-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.report-card-title{display:grid;gap:2px;min-width:0}
+.report-card-title strong{overflow:hidden;font-size:15px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.report-card-title span{color:var(--label-2);font-size:13px}
+.report-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;flex:none;max-width:55%}
+.report-reason.is-copyright,.report-reason.is-inappropriate{color:var(--danger);background:var(--danger-soft)}
+.report-meta{margin:8px 0 0;color:var(--label-3);font-size:12.5px}
+.report-details{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--fill-2);font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.report-contact{margin:8px 0 0;color:var(--label-2);font-size:13px}
+.report-contact a{color:var(--accent)}
+.report-actions-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+.report-actions-row .text-button{margin-left:auto}
+.danger-button{color:var(--danger)}
+.report-strikes{color:var(--danger);font-weight:600}
+.report-takedown{margin-top:14px;padding:14px;border-radius:12px;background:var(--fill-2);font-size:13.5px;line-height:1.45}
+.report-takedown p{margin:0}
+.report-takedown .report-actions-row{justify-content:flex-end;margin-top:12px}
+.report-strike{display:flex;align-items:flex-start;gap:10px;margin-top:12px;cursor:pointer}
+.report-strike input{flex:none;margin:2px 0 0;width:16px;height:16px;accent-color:var(--danger)}
+.report-strike span{display:grid;gap:2px;font-weight:600}
+.report-strike small{color:var(--label-2);font-size:12.5px;font-weight:400}
+.violation-list{display:grid;gap:0;margin:0;padding:0;list-style:none}
+.violation-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--separator);font-size:13.5px}
+.violation-list li:first-child{border-top:0}
+.violation-list li span{display:grid;gap:1px;min-width:0}
+.violation-list li strong{overflow:hidden;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.violation-list li small{color:var(--label-2);font-size:12.5px}
+#user-violations{margin:-4px 0 8px;padding:0 0 4px}
+.violations-notice{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;padding:16px 18px;border:1px solid var(--separator);border-radius:16px;background:var(--surface)}
+.violations-notice>.icon{flex:none;width:20px;height:20px;margin-top:1px;color:var(--danger)}
+.violations-copy{flex:1;min-width:0}
+.violations-copy strong{font-size:14.5px;font-weight:600}
+.violations-copy p{margin:3px 0 6px;color:var(--label-2);font-size:13px;line-height:1.45}
+.violations-copy p a{color:var(--accent)}
+.reports-empty{display:grid;justify-items:center;gap:6px;padding:36px 12px;color:var(--label-2);font-size:13.5px;text-align:center}
+.reports-empty .icon{width:26px;height:26px;color:var(--label-3)}
+.reports-empty strong{color:var(--label);font-size:15px}
+@media (max-width:600px){
+  .report-card-head{flex-direction:column}
+  .report-badges{justify-content:flex-start;max-width:none}
+  .report-actions-row .text-button{margin-left:0}
+}
+
 /* App shell */
 .app-shell{display:grid;grid-template-columns:240px minmax(0,1fr);height:100dvh;animation:fade-in .45s var(--ease) both}
 .workspace-main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh;overflow:hidden}
@@ -641,7 +702,7 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
 .settings-content .plan-head{align-items:flex-start}.settings-content .storage-meter{margin-top:12px}.settings-content .plan-head .button{flex:none;height:32px;padding:0 12px;font-size:12px}
 .manual-key summary{cursor:pointer;padding:4px 0}
 .status-badge{display:inline-flex;align-items:center;vertical-align:middle;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;line-height:1.6;color:var(--label-2);background:var(--fill);white-space:nowrap}
-.settings-row h4 .status-badge{margin-left:5px}.status-badge.is-on{color:var(--green);background:var(--green-soft)}.status-badge.is-plus{color:var(--accent);background:var(--accent-soft)}
+.settings-row h4 .status-badge{margin-left:5px}.status-badge.is-on{color:var(--green);background:var(--green-soft)}.status-badge.is-plus{color:var(--accent);background:var(--accent-soft)}.status-badge.is-danger{color:var(--danger);background:var(--danger-soft)}
 .security-signout{font-size:12px;margin-top:16px}.form-status:empty{display:none}
 .users-dialog{width:min(820px,calc(100vw - 48px));padding:0;overflow:hidden}
 .users-dialog .settings-header .field-hint{margin-top:4px}.users-content{padding:22px 26px;max-height:calc(90dvh - 100px);overflow:auto}
