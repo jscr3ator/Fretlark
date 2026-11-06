@@ -12,3 +12,5 @@ Fretlark bundles these components. Each keeps its own license, included next to 
 | SONiVOX EAS soundfont | `public/editor/vendor/soundfont/sonivox.*` | Apache-2.0 |
 | [Inter](https://rsms.me/inter/) font | `public/admin-assets/` | SIL OFL 1.1 |
 
+
+Loaded on demand, not included in this repository: browsers without WebCodecs (for example Firefox for Android) download [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) core 0.12.10 (FFmpeg with x264, GPL-2.0-or-later) from jsDelivr to convert exported videos to MP4. It runs in a separate Web Worker (`public/editor/video-convert-worker.js`) and only when a video is exported.

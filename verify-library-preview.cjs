@@ -31,7 +31,7 @@ function library(){
  l.context.onLessonAction({target:{closest(){return {dataset:{id:'local:device-song'}};}}});
  assert.equal(l.element('selected-title').textContent,'Device song');
  assert.equal(l.element('selected-edit').href,'/editor/index.html?local=device-song');
- assert.equal(l.element('selected-state').textContent,'On this device');assert.equal(l.element('selected-cloud-save').hidden,false);
+ assert.equal(l.element('selected-state').textContent,'Local');assert.equal(l.element('selected-cloud-save').hidden,false);
  assert.equal(l.loads.at(-1)[0].local_id,local.id);assert.equal(l.loads.at(-1)[2],owner);
  assert.equal(l.element('detail-share').hidden,true,'Device preview cannot invoke cloud sharing');
  l.context.onLessonAction({target:{closest(){return {dataset:{id:cloud.id}};}}});

@@ -9,6 +9,37 @@ const lines = editor.split('\n');
 const line = text => lines.find(item => item.includes(text));
 assert.ok(line("const query=new URLSearchParams(location.search)"), 'Editor query state exists');
 
+// Phone controls reuse the same editing commands and cover fret entry without opening a text field.
+{
+  const html=fs.readFileSync('public/editor/index.html','utf8'),css=fs.readFileSync('public/editor/styles.css','utf8');
+  assert.match(html,/id="touch-entry"[\s\S]*data-fret-key="0"[\s\S]*data-fret-key="Backspace"/);
+  for(const action of ['string-up','string-down','beat-prev','beat-next','bar-prev','bar-next','rest','slide','bend'])assert.ok(html.includes(`data-touch="${action}"`),`Touch bar exposes ${action}`);
+  assert.match(html,/id="touch-duration"[\s\S]*value="32"/);
+  for(const action of ['btn-cloud-save','btn-save','btn-midi','btn-wav','btn-ascii','btn-print','btn-toggle-palette','btn-toggle-inspector','btn-toggle-mixer','btn-download'])assert.ok(html.includes(`data-click="${action}"`),`More sheet exposes ${action}`);
+  assert.match(css,/@media \(max-width:760px\), \(pointer:coarse\) and \(max-width:1020px\)/);
+  assert.match(css,/env\(safe-area-inset-bottom\)/);
+  assert.match(editor,/enterFretDigit\(e\.key\)/);assert.match(editor,/enterFretDigit\(key\.dataset\.fretKey,24\)/);
+  assert.match(editor,/moveString\(e\.key==='ArrowUp'\?-1:1\)/);assert.match(editor,/action==='beat-next'\)move\(1\)/);
+  assert.match(editor,/touchEditorEnabled\(\)&&!isViewer&&check\('editor-mode'\)&&!!curBeat\(\)/);
+}
+
+// The keypad and keyboard share two-digit entry, coalescing, audition, and track validation.
+{
+  const start=editor.indexOf('  function enterFretDigit('),end=editor.indexOf('  function touchEditorEnabled()',start),actions=[];
+  const context=vm.createContext({
+    selected:{staff:0},currentString:2,digitBuffer:'',digitTimer:null,digitUndoEntry:null,
+    selectedTrack:()=>({staves:[{isStringed:true,isPercussion:false}]}),
+    set:(id,value)=>actions.push([id,value]),applyNote:(note,undo)=>{actions.push([note,undo]);return 'undo';},auditionNote:()=>actions.push('audition'),
+    clearTimeout(){},setTimeout:()=>1,clearDigitEntry(){},toast:message=>actions.push(message),
+  });
+  vm.runInContext(editor.slice(start,end),context);
+  context.enterFretDigit('1',24);context.enterFretDigit('2',24);
+  assert.deepEqual(actions.filter(Array.isArray).filter(row=>row[0]?.fret).map(row=>row[0].fret),[1,12]);
+  assert.equal(context.digitBuffer,'12');
+  context.clearDigitEntry=()=>{context.digitBuffer='';};context.enterFretDigit('2',24);context.enterFretDigit('5',24);
+  assert.equal(context.digitBuffer,'5','Touch fret pad restarts two-digit entry above fret 24');
+}
+
 // A near miss on a 6px fret must select the note, not the preceding rest.
 {
   const upper={id:1,beat:{absolutePlaybackStart:480}}, lower={id:2,beat:{absolutePlaybackStart:480}};
@@ -115,8 +146,10 @@ function audioContext(search = '?mute=1') {
     selected: {track: 0, staff: 0, bar: 0, voice: 0, beat: 0, note: 0}, currentString: 1, digitBuffer: '', digitTimer: null,
     selectedTrack: () => ({staves: [{isStringed: true, isPercussion: false, tuning: [64, 59, 55, 50, 45, 40]}]}),
     clearDigitEntry() {}, applyNote(data) { noteActions.push(data); return {}; },
-    set() {}, toast() {}, check: () => true, isViewer: false, setTimeout: () => 1, clearTimeout() {},
+    set() {}, toast() {}, auditionNote(){}, check: () => true, isViewer: false, setTimeout: () => 1, clearTimeout() {},
   });
+  const entryStart=editor.indexOf('  function enterFretDigit('),entryEnd=editor.indexOf('  function touchEditorEnabled()',entryStart);
+  vm.runInContext(editor.slice(entryStart,entryEnd),context);
   context.selectBeat = (beat, note) => { context.selected.note = note?.index || 0; context.currentString = note ? 7 - note.string : 1; };
   api.beatMouseDown.trigger({id: 'beat'});
   api.noteMouseDown.trigger({index: 1, string: 5, beat: {id: 'beat'}});
@@ -367,7 +400,7 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   assert.equal(kept.removed.length, 0, 'Newer edits keep the device copy');
   assert.equal(kept.context.localId, 'device', 'Device copy id survives a save of an older snapshot');
   assert.equal(kept.context.dirty, true, 'Newer edits still need another cloud save');
-  assert.notEqual(kept.badge.textContent, 'Saved to cloud', 'Badge cannot claim newer edits are in the cloud');
+  assert.notEqual(kept.badge.textContent, 'Saved to Library', 'Badge cannot claim newer edits are in the cloud');
   const moved = await runSave(false);
   assert.equal(moved.removed.length, 1, 'An unchanged move to cloud removes the device copy');
   assert.equal(moved.context.localId, null);
@@ -432,9 +465,9 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   const context = vm.createContext({isViewer: false, remoteLesson: null, localId: null, guest: false, $: () => badge});
   vm.runInContext(editor.slice(editor.indexOf('  function syncDocumentBadge('), editor.indexOf('  function saveDraft()')), context);
   context.syncDocumentBadge(); assert.equal(badge.textContent, 'Tab editor');
-  context.localId = 'device'; context.syncDocumentBadge(); assert.equal(badge.textContent, 'On this device');
+  context.localId = 'device'; context.syncDocumentBadge(); assert.equal(badge.textContent, 'Local');
   context.remoteLesson = {id: 'lesson'}; context.syncDocumentBadge(); assert.equal(badge.textContent, 'Library song');
-  context.remoteLesson = null; context.localId = null; context.guest = true; context.syncDocumentBadge(); assert.equal(badge.textContent, 'On this device');
+  context.remoteLesson = null; context.localId = null; context.guest = true; context.syncDocumentBadge(); assert.equal(badge.textContent, 'Local');
 }
 
 // Player pages without ?preview are still read-only and receive the lesson's student settings.

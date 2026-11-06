@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Video — Fretlark</title>
+  <link rel="icon" href="/favicon.svg?v=4">
+  <link rel="preload" href="./vendor/font/Bravura.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./video.css">
+</head>
+<body>
+  <main id="app" class="video-app">
+    <header class="video-head">
+      <a class="back" href="/admin" aria-label="Back to library">‹ Library</a>
+      <div class="video-titles"><h1 id="song-title">Loading…</h1><p id="song-artist"></p></div>
+    </header>
+    <div class="video-body">
+      <section class="preview-pane" aria-label="Preview">
+        <canvas id="preview" width="1080" height="1920" aria-label="First frame of the video"></canvas>
+      </section>
+      <section class="controls" aria-label="Video settings">
+        <h2>Make a video</h2>
+        <p class="hint">A scrolling tab video with the song's audio, ready for Instagram, TikTok or YouTube Shorts.</p>
+        <form id="options" class="options" onsubmit="return false">
+          <label>Format
+            <select id="opt-format">
+              <option value="wide" selected>Landscape (16:9)</option>
+              <option value="reel">Reel / Story (9:16)</option>
+              <option value="square">Square post (1:1)</option>
+            </select>
+          </label>
+          <label>Length
+            <select id="opt-length">
+              <option value="30">First 30 seconds</option>
+              <option value="60" selected>First 60 seconds</option>
+              <option value="90">First 90 seconds</option>
+              <option value="full">Whole song</option>
+            </select>
+          </label>
+          <label>Track
+            <select id="opt-track"></select>
+          </label>
+          <label>Show
+            <select id="opt-staff">
+              <option value="tab" selected>Tab only</option>
+              <option value="both">Notation and tab</option>
+            </select>
+            <small id="staff-note" class="field-note" hidden>This track has no tab, so its notation is shown.</small>
+          </label>
+          <label>Look
+            <select id="opt-theme">
+              <option value="light" selected>Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+        </form>
+        <button id="export" class="button primary" type="button" disabled>Export video</button>
+        <div id="progress" class="progress" hidden><div id="progress-bar"></div></div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <div id="result" class="result" hidden>
+          <video id="result-video" controls playsinline></video>
+        </div>
+      </section>
+    </div>
+  </main>
+  <main id="gate" class="gate" hidden>
+    <h1>Video export</h1>
+    <p id="gate-message"></p>
+    <a class="button primary" href="/admin">Go to your library</a>
+  </main>
+  <div id="score-host" aria-hidden="true"></div>
+  <script src="./vendor/alphaTab.js"></script>
+  <script src="./video-mux.js"></script>
+  <script src="./video-export.js"></script>
+</body>
+</html>

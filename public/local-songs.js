@@ -20,14 +20,14 @@
     return song && typeof song.json === 'string' ? song : null;
   }
   function put(owner, song) {
-    const s = store(); if (!s) throw Error('This browser is blocking local storage.');
+    const s = store(); if (!s) throw Error('Can’t save songs locally right now.');
     const id = song.id || (globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
     const entry = {id, title: String(song.title || 'Untitled').slice(0, 180), artist: String(song.artist || '').slice(0, 180), tracks: Number(song.tracks) || 0, bars: Number(song.bars) || 0, tempo: Number(song.tempo) || 0, updatedAt: new Date().toISOString()};
     try {
       s.setItem(songKey(owner, id), JSON.stringify({...entry, json: song.json}));
       s.setItem(indexKey(owner), JSON.stringify([entry, ...list(owner).filter(item => item.id !== id)]));
     } catch (e) {
-      throw Error(/quota/i.test(String(e?.name) + e?.message) ? 'This browser is out of space for local songs. Save some to the cloud or your device.' : 'The song could not be saved in this browser.');
+      throw Error(/quota/i.test(String(e?.name) + e?.message) ? 'Local storage is full. Save some songs to your Library or download them.' : 'Couldn’t save the song locally.');
     }
     return entry;
   }

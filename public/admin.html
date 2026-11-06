@@ -10,13 +10,14 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=76057de57e71">
+  <link rel="stylesheet" href="/admin.css?v=8d1d4318f2b1">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
     <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
     <symbol id="i-stack" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="13" rx="2.5"/><path d="M6 4h12"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></symbol>
     <symbol id="i-device" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8 20h8M12 16.5V20"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
@@ -91,6 +92,7 @@
         <button class="filter" type="button" data-filter="all" aria-pressed="false"><svg class="icon"><use href="#i-music"/></svg><span>All Songs</span><span class="filter-count" data-count="all"></span></button>
         <button class="filter" type="button" data-filter="shared" aria-pressed="false"><svg class="icon"><use href="#i-link"/></svg><span>Shared</span><span class="filter-count" data-count="shared"></span></button>
         <button class="filter" type="button" data-filter="private" aria-pressed="false"><svg class="icon"><use href="#i-lock"/></svg><span>Private</span><span class="filter-count" data-count="private"></span></button>
+        <button class="filter" type="button" data-setlists-open aria-haspopup="dialog"><svg class="icon"><use href="#i-stack"/></svg><span>Setlists</span></button>
       </nav>
       <div class="sidebar-actions">
         <p class="sidebar-label">Create</p>
@@ -130,7 +132,7 @@
         <section id="violations-notice" class="violations-notice" aria-labelledby="violations-title" hidden><svg class="icon"><use href="#i-flag"/></svg><div class="violations-copy"><strong id="violations-title"></strong><p id="violations-detail"></p><ul id="violations-list" class="violation-list"></ul></div></section>
         <section id="resume" class="panel resume" aria-labelledby="resume-title"></section>
         <section class="panel" id="local-panel" aria-labelledby="local-title" hidden>
-          <header class="panel-head"><div><h2 id="local-title">On this device</h2><p class="panel-sub">Saved in this browser only. Not in your cloud library.</p></div></header>
+          <header class="panel-head"><div><h2 id="local-title">Saved locally</h2><p class="panel-sub">Kept in this browser, separate from your Library.</p></div></header>
           <div id="local-songs" class="link-table"></div>
         </section>
         <section class="panel" aria-labelledby="links-title">
@@ -190,10 +192,11 @@
               </div>
               <div class="song-actions">
                 <a id="selected-edit" class="button primary" href="#"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a>
-                <button id="selected-cloud-save" class="button" type="button" hidden><svg class="icon"><use href="#i-upload"/></svg><span>Save to cloud</span></button>
+                <button id="selected-cloud-save" class="button" type="button" hidden><svg class="icon"><use href="#i-upload"/></svg><span>Save to Library</span></button>
                 <button id="detail-share" class="button" type="button"><svg class="icon"><use href="#i-share"/></svg>Share</button>
+                <a id="selected-video" class="button" href="#" target="_blank" rel="noopener" title="Make a scrolling tab video for Instagram, TikTok or YouTube"><svg class="icon"><use href="#i-video"/></svg>Video</a>
                 <button id="mobile-preview" class="button preview-button mobile-preview" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-play"/></svg>Preview</button>
-                <button id="selected-device" class="button" type="button" title="Move this song out of the cloud and keep it only in this browser"><svg class="icon"><use href="#i-device"/></svg>Only on this device</button>
+                <button id="selected-device" class="button" type="button" title="Move this song out of your Library and keep it locally"><svg class="icon"><use href="#i-device"/></svg>Keep locally only</button>
                 <button id="selected-settings" class="icon-button bordered" type="button" aria-label="Song settings" title="Song settings"><svg class="icon"><use href="#i-sliders"/></svg></button>
                 <button id="selected-delete" class="icon-button bordered danger-icon" type="button" aria-label="Delete song" title="Delete song"><svg class="icon"><use href="#i-trash"/></svg></button>
               </div>
@@ -244,7 +247,7 @@
           <div id="recovery-row" class="settings-row" hidden><div><h4>Recovery codes</h4><p id="recovery-remaining"></p></div><button id="mfa-recovery" class="button" type="button">Replace codes</button></div>
           <div class="settings-row"><div><h4>Sessions</h4><p id="security-sessions">Loading…</p></div><button id="sessions-others" class="button" type="button">Sign out others</button></div>
           <button id="sessions-all" class="text-button security-signout" type="button">Sign out everywhere</button>
-          <div id="delete-account-row" class="settings-row"><div><h4>Delete account</h4><p id="delete-account-detail">Permanently delete your account and every song saved in the cloud. Songs saved only on this device stay in this browser.</p></div><button id="delete-account-open" class="button danger" type="button">Delete account</button></div>
+          <div id="delete-account-row" class="settings-row"><div><h4>Delete account</h4><p id="delete-account-detail">Permanently delete your account and every song saved to your Library. Songs saved locally stay in this browser.</p></div><button id="delete-account-open" class="button danger" type="button">Delete account</button></div>
           <p id="security-status" class="form-status" role="status"></p>
         </section>
         <section id="settings-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
@@ -293,6 +296,13 @@
       <p id="reports-status" class="form-status" role="status" aria-live="polite"></p>
     </div>
   </dialog>
+  <dialog id="setlists-dialog" class="users-dialog setlists-dialog" aria-labelledby="setlists-title">
+    <div class="settings-header"><div><h2 id="setlists-title">Setlists</h2><p class="field-hint">Group songs and share them with one link.</p></div><button class="icon-button" type="button" data-close="setlists-dialog" aria-label="Close setlists"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="users-content">
+      <div id="setlists-content"></div>
+      <p id="setlists-status" class="form-status" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
 
   <dialog id="verify-dialog" class="focused-dialog" aria-labelledby="verify-title">
     <form id="verify-form"><div class="dialog-head"><h2 id="verify-title">Verify it’s you</h2><button class="icon-button" type="button" data-close="verify-dialog" aria-label="Cancel verification"><svg class="icon"><use href="#i-close"/></svg></button></div><p class="field-hint">Unlock sensitive actions for 10 minutes.</p><label class="field-label" for="verify-password">Current password</label><input id="verify-password" type="password" autocomplete="current-password" maxlength="1024" required><div id="verify-factor" hidden><label class="field-label" for="verify-code">Authenticator or recovery code</label><input id="verify-code" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div><p id="verify-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="button" type="button" data-close="verify-dialog">Cancel</button><button id="verify-submit" class="button primary" type="submit">Verify</button></div></form>
@@ -336,7 +346,7 @@
     <form id="delete-account-form">
       <div class="dialog-head"><h2 id="delete-account-title">Delete account</h2><button class="icon-button" type="button" data-close="delete-account-dialog" aria-label="Close account deletion"><svg class="icon"><use href="#i-close"/></svg></button></div>
       <div id="delete-account-step-one">
-        <p class="field-hint">This permanently deletes your account and every song saved in the cloud. Songs saved only on this device stay in this browser. This cannot be undone.</p>
+        <p class="field-hint">This permanently deletes your account and every song saved to your Library. Songs saved locally stay in this browser. This can’t be undone.</p>
         <label class="field-label" for="delete-account-confirm">Type your username to confirm</label><input id="delete-account-confirm" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="254" required>
         <label class="field-label" for="delete-account-password">Current password</label><input id="delete-account-password" type="password" autocomplete="current-password" maxlength="1024" required>
         <div id="delete-account-factor" hidden><label class="field-label" for="delete-account-otp">Authenticator or recovery code</label><input id="delete-account-otp" type="text" autocomplete="one-time-code" maxlength="40" spellcheck="false"></div>
@@ -501,11 +511,12 @@
   <script src="/editor/vendor/alphaTab.js?v=ac899d4f853a"></script>
   <script src="/editor/vendor/fflate.js?v=c3b34f2e9f5e"></script>
   <script src="/editor/model.js?v=601031319cc9"></script>
-  <script src="/admin-preview.js?v=a03b1950e8d5"></script>
-  <script src="/local-songs.js?v=d693a1bd3639"></script>
+  <script src="/admin-preview.js?v=8e81f4ff6975"></script>
+  <script src="/local-songs.js?v=2ca6499f8278"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=e25c432ba4ea"></script>
+  <script src="/account-settings.js?v=14c2b1e635d4"></script>
   <script src="/admin-reports.js?v=e3c56df06fc2"></script>
+  <script src="/admin-setlists.js?v=9ece8e8a7085"></script>
   <script src="/admin.js?v=6924bfeeeac6"></script>
 </body>
 </html>

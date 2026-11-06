@@ -13,3 +13,11 @@
 
 /editor/*.js
   Cache-Control: no-cache
+
+/editor/video.html
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+
+/editor/video-convert-worker.js
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless

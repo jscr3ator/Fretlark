@@ -395,7 +395,7 @@
   function renderLocalSongs() {
     const songs = window.LocalSongs ? window.LocalSongs.list(localOwner) : [];
     $('local-panel').hidden = !songs.length;
-    $('local-songs').innerHTML = songs.map(song => `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="local:${esc(song.id)}">${coverHtml(localCoverSource(song), 'link-cover')}<span><strong>${esc(song.title || 'Untitled song')}</strong><small>${esc([song.artist, `${song.bars || 0} bars`, `edited ${ago(song.updatedAt)}`].filter(Boolean).join(' · '))}</small></span></div><div class="local-actions"><button class="button" type="button" data-local-cloud="${esc(song.id)}" ${localCloudSaves.has(song.id)?'disabled':''}>${localCloudSaves.has(song.id)?'Saving…':'Save to cloud'}</button><a class="button" href="/editor/index.html?local=${encodeURIComponent(song.id)}">Edit</a><button class="icon-button" type="button" data-local-remove="${esc(song.id)}" aria-label="Remove ${esc(song.title || 'song')} from this browser"><svg class="icon"><use href="#i-trash"/></svg></button></div></div>`).join('');
+    $('local-songs').innerHTML = songs.map(song => `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="local:${esc(song.id)}">${coverHtml(localCoverSource(song), 'link-cover')}<span><strong>${esc(song.title || 'Untitled song')}</strong><small>${esc([song.artist, `${song.bars || 0} bars`, `edited ${ago(song.updatedAt)}`].filter(Boolean).join(' · '))}</small></span></div><div class="local-actions"><button class="button" type="button" data-local-cloud="${esc(song.id)}" ${localCloudSaves.has(song.id)?'disabled':''}>${localCloudSaves.has(song.id)?'Saving…':'Save to Library'}</button><a class="button" href="/editor/index.html?local=${encodeURIComponent(song.id)}">Edit</a><button class="icon-button" type="button" data-local-remove="${esc(song.id)}" aria-label="Remove ${esc(song.title || 'song')} from local songs"><svg class="icon"><use href="#i-trash"/></svg></button></div></div>`).join('');
   }
   document.addEventListener('click', event => {
     if (event.target.closest('.cover-caption')) event.stopPropagation();
@@ -562,7 +562,7 @@
     }).join('') + localShown.map(song => `<div class="lesson-row local-row${librarySelectedId === `local:${song.id}` ? ' selected' : ''}" role="button" tabindex="0" data-id="local:${esc(song.id)}" aria-pressed="${librarySelectedId === `local:${song.id}`}">
         ${coverHtml(localCoverSource(song), 'song-mark')}
         <span class="song-copy"><strong class="song-title">${esc(song.title || 'Untitled song')}</strong><span class="song-artist">${esc(song.artist || '')}</span></span>
-        <span class="song-meta"><svg class="icon shared-icon" role="img" aria-label="On this device"><use href="#i-device"/></svg>On this device</span>
+        <span class="song-meta"><svg class="icon shared-icon" role="img" aria-label="Local"><use href="#i-device"/></svg>Local</span>
         <svg class="icon row-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
       </div>`).join('');
     const counts = {all: lessons.length + localAll.length, shared: lessons.filter(lesson => lesson.shared).length};
@@ -621,12 +621,14 @@
     const local = Boolean(lesson.local_id);
     $('selected-artist').textContent = lesson.artist || (local ? '' : lesson.file_name || 'GP file');
     $('selected-artist').hidden = local && !lesson.artist;
-    $('selected-state').textContent = local ? 'On this device' : lesson.shared ? 'Link shared' : 'Private';
+    $('selected-state').textContent = local ? 'Local' : lesson.shared ? 'Link shared' : 'Private';
     document.querySelector('.song-sharing').classList.toggle('is-shared', Boolean(lesson.shared));
     for (const id of ['detail-share', 'selected-device', 'selected-settings', 'selected-preview', 'mobile-preview']) $(id).hidden = local;
+    $('selected-video').hidden = local;
+    if (!local) $('selected-video').href = `/editor/video.html?lesson=${encodeURIComponent(lesson.id)}`;
     $('selected-cloud-save').hidden = !local;
     $('selected-cloud-save').disabled = localCloudSaves.has(lesson.local_id);
-    $('selected-cloud-save').querySelector('span').textContent = localCloudSaves.has(lesson.local_id) ? 'Saving…' : 'Save to cloud';
+    $('selected-cloud-save').querySelector('span').textContent = localCloudSaves.has(lesson.local_id) ? 'Saving…' : 'Save to Library';
     const tracks = Number(lesson.track_count) || 0;
     const bars = Number(lesson.bar_count) || 0;
     const tempo = Number(lesson.tempo) || 0;
@@ -679,7 +681,7 @@
       if (accountCopy && passwordAccount) accountCopy.textContent = session.email;
       $('signout').hidden = !passwordAccount;
       $('delete-account-open').disabled = session.owner === true;
-      $('delete-account-detail').textContent = session.owner === true ? 'The owner account cannot be deleted. Hand over ownership first.' : 'Permanently delete your account and every song saved in the cloud. Songs saved only on this device stay in this browser.';
+      $('delete-account-detail').textContent = session.owner === true ? 'The owner account cannot be deleted. Hand over ownership first.' : 'Permanently delete your account and every song saved to your Library. Songs saved locally stay in this browser.';
       $('migration').hidden = !(passwordAccount && session.legacyMigrationAvailable);
 
       if (resetToken) {
@@ -694,7 +696,7 @@
         $('access-message').textContent = session.authType === 'legacy'
           ? 'Your older sign-in is available. Create or sign in to a password account to manage your library and claim those songs.'
           : !registrationOpen ? 'Registration is currently closed.'
-          : nextPath?.startsWith('/editor/') ? `Create a free account to keep your song in the cloud.` : '';
+          : nextPath?.startsWith('/editor/') ? `Create a free account to save your song to your Library.` : '';
         setAuthMode(params.has('signup') && !signupShown ? 'register' : authMode);
         signupShown = true;
         return;
@@ -1191,18 +1193,18 @@
 
   function deleteLocalSong(song) {
     if(localCloudSaves.has(song.local_id || song.id))return;
-    if (!window.confirm(`Remove “${song.title || 'Untitled song'}” from this browser? It is not in your cloud library, so this cannot be undone.`)) return;
+    if (!window.confirm(`Remove “${song.title || 'Untitled song'}” from local songs? It isn’t in your Library, so this can’t be undone.`)) return;
     try {
       window.LocalSongs.remove(localOwner, song.local_id || song.id);
       render();
-      toast('Song removed from this device.');
+      toast('Removed from local songs.');
     } catch (error) { toast(error.message || 'Could not remove the song.', true); }
   }
 
   async function saveLocalToCloud(song) {
     if(!song?.local_id || localCloudSaves.has(song.local_id))return;
     const id=song.local_id, owner=localOwner, source=window.LocalSongs.get(owner,id);
-    if(!source){toast('This song is no longer saved in this browser.',true);return;}
+    if(!source){toast('This song is no longer saved locally.',true);return;}
     localCloudSaves.add(id);render();
     try {
       const score=window.ScoreModel.restore(source.json),at=window.alphaTab;
@@ -1210,7 +1212,7 @@
       const bytes=new at.exporter.Gp7Exporter().export(score,new at.Settings());
       const reopened=at.importer.ScoreLoader.loadScoreFromBytes(bytes,new at.Settings());
       const notes=s=>{let count=0;for(const track of s.tracks)for(const staff of track.staves)for(const bar of staff.bars)for(const voice of bar.voices)for(const beat of voice.beats)count+=beat.notes.length;return count;};
-      if(reopened.tracks.length!==score.tracks.length||reopened.masterBars.length!==score.masterBars.length||notes(reopened)!==notes(score))throw Error('GP export could not preserve all tracks, bars and notes. Your device copy is safe.');
+      if(reopened.tracks.length!==score.tracks.length||reopened.masterBars.length!==score.masterBars.length||notes(reopened)!==notes(score))throw Error('GP export could not preserve all tracks, bars and notes. The local copy is safe.');
       const file=new File([bytes],`${(score.title||'Untitled').slice(0,240)}.gp`,{type:'application/octet-stream'});
       const metadata=await inspect(file);
       const row=await api('admin/lessons',{method:'POST',...uploadOptions(file,metadata)});
@@ -1219,8 +1221,8 @@
       try{if(window.LocalSongs.get(owner,id)?.json===source.json){window.LocalSongs.remove(owner,id);kept=Boolean(window.LocalSongs.get(owner,id));}}catch{/* Cloud save succeeded; retain device copy if cleanup fails. */}
       if(librarySelectedId===song.id)librarySelectedId=row.id;
       updateLesson(row);
-      toast(kept?'Saved to cloud. Your device copy was kept.':'Saved to cloud.');
-    } catch(error){toast(error.message||'Could not save to cloud. Your device copy is safe.',true);}
+      toast(kept?'Saved to Library. A local copy was kept.':'Saved to Library.');
+    } catch(error){toast(error.message||'Couldn’t save to Library. The local copy is safe.',true);}
     finally{localCloudSaves.delete(id);render();}
   }
 
@@ -1228,22 +1230,22 @@
   // Moves a cloud song into this browser only: the local copy is saved and checked before the cloud copy is deleted.
   async function keepOnDevice(lesson) {
     if (!lesson || savingDetails || !window.LocalSongs || !window.ScoreModel) return;
-    if (!confirm(`Keep “${lesson.title || 'Untitled song'}” only on this device?\n\nIt will be removed from your cloud library and its share link will stop working. It will only exist in this browser, so clearing site data deletes it.`)) return;
+    if (!confirm(`Keep “${lesson.title || 'Untitled song'}” locally only?\n\nIt leaves your Library and its share link stops working. It stays in this browser, isn’t backed up, and clearing browser data deletes it.`)) return;
     savingDetails = true; $('selected-device').disabled = true;
     try {
       const response = await fetch(`/api/admin/lessons/${encodeURIComponent(lesson.id)}/file`, {credentials: 'same-origin', cache: 'no-store'});
-      if (!response.ok) throw Error('Could not download the song from the cloud.');
+      if (!response.ok) throw Error('Couldn’t download the song from your Library.');
       const bytes = new Uint8Array(await response.arrayBuffer()), at = window.alphaTab;
       const score = /\.atex$/i.test(lesson.file_name) ? at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(bytes), new at.Settings()) : at.importer.ScoreLoader.loadScoreFromBytes(bytes, new at.Settings());
       score.title = lesson.title || score.title; score.artist = lesson.artist || score.artist;
       const entry = window.LocalSongs.put(localOwner, {title: score.title, artist: score.artist, tracks: score.tracks.length, bars: score.masterBars.length, tempo: score.tempo, json: window.ScoreModel.snapshot(score)});
-      if (!window.LocalSongs.get(localOwner, entry.id)) throw Error('This browser could not keep the song.');
+      if (!window.LocalSongs.get(localOwner, entry.id)) throw Error('Couldn’t save the song locally.');
       try { await api(`admin/lessons/${encodeURIComponent(lesson.id)}`, {method: 'DELETE'}); }
       catch (error) { window.LocalSongs.remove(localOwner, entry.id); throw error; }
       lessons = lessons.filter(item => item.id !== lesson.id);
       if (librarySelectedId === lesson.id) librarySelectedId = lessons[0]?.id || null;
       render();
-      toast(`“${lesson.title || 'Untitled song'}” is now only on this device.`);
+      toast(`“${lesson.title || 'Untitled song'}” is now saved locally.`);
     } catch (error) {
       toast(error.message || 'Could not move the song.', true);
     } finally {

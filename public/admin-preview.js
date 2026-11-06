@@ -91,7 +91,7 @@
       let parsed;
       if (row.local_id) {
         const song = window.LocalSongs?.get(owner, row.local_id);
-        if (!song) throw new Error('This song is no longer saved in this browser.');
+        if (!song) throw new Error('This song is no longer saved locally.');
         parsed = window.ScoreModel.restore(song.json);
       } else {
         const response = await fetch(`/api/admin/lessons/${encodeURIComponent(row.id)}/file`, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});

@@ -453,3 +453,112 @@ body.hide-mixer .toast,body.focus-score .toast{bottom:24px}
 .device-save{height:30px;margin:0 6px 0 0;padding:0 13px;border-radius:7px;background:var(--control,rgba(127,127,127,.15));color:var(--text,inherit);font-size:12.5px;font-weight:600}
 .device-save.on{opacity:.75}
 .device-save[hidden]{display:none}
+
+/* Touch editor */
+.mobile-toolbar{display:none}
+.more-sheet{width:min(480px,100vw);max-width:none;max-height:min(78dvh,720px);margin:auto 0 0;padding:16px;border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;background:var(--panel);color:var(--text);box-shadow:var(--shadow-pop)}
+.more-sheet::backdrop{background:rgba(0,0,0,.35);backdrop-filter:blur(3px)}
+.more-sheet[open]{position:fixed;inset:auto 0 0}
+.more-sheet .dialog-header{align-items:center;margin-bottom:12px}
+.more-sheet .icon-button{height:44px;min-width:44px}
+.more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:calc(78dvh - 70px);overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
+.more-grid>button,.more-grid>label,.more-grid>.more-link{display:flex;align-items:center;justify-content:flex-start;min-height:46px;padding:8px 12px;border-radius:10px;background:var(--control);color:var(--text);font-size:13px;text-align:left;text-decoration:none}
+.more-grid>label{display:grid;gap:3px;color:var(--text-2);font-size:11px}
+.more-grid select{width:100%;height:44px;font-size:13px}
+.touch-entry{display:none}
+.touch-entry[hidden]{display:none!important}
+.touch-entry button{min-width:44px;min-height:44px;border-radius:9px;background:var(--control);color:var(--text);font-size:13px;font-weight:600;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.touch-entry button:active,.more-grid>button:active{background:var(--accent-soft);color:var(--accent-text)}
+.dock-collapse{display:flex;align-items:center;padding:0;background:transparent;text-align:left}
+.dock-collapse .dock-title{min-height:0}
+.dock-collapse-toggle{display:none}
+.track-dock.dock-collapsed .track-list,.track-dock.dock-collapsed .dock-resizer{display:none}
+@media (max-width:760px), (pointer:coarse) and (max-width:1020px){
+  :root{--header:48px;--tabs:32px;--dock-height:48px;--left-width:0px;--right-width:0px}
+  body{grid-template-rows:var(--header) var(--tabs) minmax(0,1fr) min(var(--dock-height),38vh);overflow:hidden;max-width:100vw}
+  .app-header{display:flex;gap:0;padding:0 8px;overflow:hidden}
+  .mobile-toolbar{display:flex;align-items:center;gap:5px;width:100%;min-width:0}
+  .mobile-song-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px;font-weight:650}
+  .app-header>.brand,.app-header>.toolbar-group{display:none}
+  .mobile-toolbar .icon-button,.mobile-toolbar .transport-button,.mobile-toolbar>.button{height:44px;min-width:44px;padding:0 10px;border-radius:10px}
+  .mobile-toolbar .transport-button{background:var(--accent);color:#fff;font-size:18px}
+  .mobile-toolbar>.button{background:var(--control);font-weight:600}
+  .file-tabs{padding:0 8px;min-width:0}
+  .file-tabs .lesson-badge,.file-tabs .tabs-spacer{display:none}
+  .file-tab{max-width:calc(100vw - 54px)}
+  .tab-add{width:44px;height:44px;min-width:44px}
+  .editor-layout{min-width:0;overflow:hidden}
+  .palette{display:none}
+  body.show-palette .palette{position:fixed;top:calc(var(--header) + var(--tabs));left:0;bottom:0;z-index:12;display:flex;width:min(280px,90vw);box-shadow:var(--shadow-pop)}
+  .work-area{min-width:0}
+  .score-scroll{padding:8px 6px 280px;overscroll-behavior-x:none}
+  .score-tools-row{min-height:42px;padding:0 8px;overflow:hidden}
+  .track-context{flex:1;min-width:0}
+  .track-context select{max-width:100%;width:100%}
+  .practice-controls{gap:3px;margin-left:0}
+  .practice-controls .loop-bound,.practice-controls .range-dash,.practice-controls .loop-shortcut,.practice-controls .separator,.practice-controls .speed-control,.practice-controls .export-menu{display:none}
+  .practice-controls .icon-button{height:42px;min-width:44px}
+  #active-track-select{height:44px}
+  .timeline-strip{gap:5px;height:32px;min-height:32px;padding:0 6px}
+  .timeline-head{display:none}
+  .timeline-bar{min-width:34px;height:26px}
+  .workspace-status{height:24px;min-height:24px;padding:0 8px;font-size:10px}
+  #file-title,.status-help{display:none}
+  .selection-summary{font-size:10px}
+  .track-dock{min-width:0;overflow:hidden}
+  .dock-resizer{display:none}
+  .dock-topline{gap:5px;min-height:48px;padding:0 6px}
+  .dock-collapse{min-width:44px;min-height:44px}
+  .dock-collapse-toggle{display:inline-grid;place-items:center;width:44px;height:44px;min-width:44px;border-radius:9px;background:var(--control);font-size:17px}
+  .dock-title{gap:5px;font-size:12px}
+  .track-count{font-size:10px}
+  .dock-add{height:44px;min-width:44px;padding:0 8px;justify-content:center;font-size:0}
+  .dock-add .icon{width:18px;height:18px}
+  .dock-status{display:none}
+  .dock-volume{gap:5px;font-size:10px}
+  .dock-volume input{width:70px}
+  .track-dock.dock-collapsed{--dock-height:48px}
+  .track-dock:not(.dock-collapsed) .track-list{max-height:24vh;overflow:auto}
+  .track-dock:not(.dock-collapsed){overflow:visible}
+  .track-dock:not(.dock-collapsed) .mixer-track{min-width:680px;height:44px}
+  .mixer-track .track-visible{width:44px;height:44px}
+  .mixer-track .track-name-btn{min-height:44px}
+  .mixer-track .mix-btn{width:44px;height:44px}
+  .mixer-track .mix-volume{height:44px}
+  .touch-entry{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:7px 8px calc(7px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(18px);box-shadow:0 -8px 24px rgba(0,0,0,.1)}
+  .touch-entry[hidden]{display:none!important}
+  .touch-top{display:grid;gap:5px;min-width:0}
+  .touch-nav,.touch-config,.touch-strings{display:flex;align-items:center;gap:4px;min-width:0}
+  .touch-nav button,.touch-strings button,.touch-config>button{min-width:44px;min-height:44px;padding:0 7px}
+  .touch-nav span{flex:1;min-width:0;overflow:hidden;text-align:center;color:var(--text-2);font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}
+  .touch-config{justify-content:space-between}
+  .touch-strings span{min-width:48px;text-align:center;font-size:11px}
+  .touch-config label{display:grid;gap:1px;color:var(--text-3);font-size:9px}
+  .touch-config select{width:90px;height:44px;min-height:44px;padding-left:6px;font-size:11px}
+  .touch-config>button{min-height:40px}
+  .touch-bottom{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start}
+  .touch-keypad{display:grid;grid-template-columns:repeat(4,44px);grid-template-rows:repeat(3,44px);gap:3px}
+  .touch-keypad button{min-width:44px;min-height:44px;height:44px;padding:0;font-size:14px}
+  .touch-effects{display:grid;grid-template-columns:repeat(2,minmax(44px,1fr));grid-template-rows:repeat(3,44px);gap:3px}
+  .touch-effects button{min-width:48px;min-height:44px;height:44px;padding:0 4px;font-size:12px}
+  .score-stage{isolation:isolate} /* keeps alphaTab's z-index:1000 cursor layer under the touch bar */
+  .toast{bottom:calc(258px + env(safe-area-inset-bottom))}
+  body.hide-mixer .toast,body.focus-score .toast{bottom:calc(258px + env(safe-area-inset-bottom))}
+}
+/* Phones held sideways: three slim rows so the score stays visible. */
+@media (max-height:560px) and (max-width:1020px) and (orientation:landscape){
+  .touch-entry{gap:4px;padding-top:5px;padding-bottom:calc(5px + env(safe-area-inset-bottom))}
+  .touch-top{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .touch-config label{display:flex;align-items:center;gap:4px}
+  .touch-bottom{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+  .touch-keypad{grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:40px}
+  .touch-keypad button,.touch-effects button,.touch-nav button,.touch-strings button,.touch-config>button,.touch-config select{min-width:0;min-height:40px;height:40px}
+  .touch-effects{grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:40px}
+}
+@media (max-width:380px){
+  .touch-entry{padding-left:5px;padding-right:5px}
+  .touch-keypad{grid-template-columns:repeat(4,44px)}
+  .touch-keypad button{min-width:44px}
+  .touch-nav button{min-width:44px;padding:0 4px;font-size:11px}
+  .dock-volume input{width:52px}
+}
