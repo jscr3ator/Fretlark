@@ -1,10 +1,10 @@
 # Bundled soundfonts
 
-## FluidR3Mono_GM.sf3
+## GeneralUser-GS.sf3 (default)
 
-Version 2.312, dated 5 December 2016 in the bank metadata. Original FluidR3 by Frank Wen; mono version by Michael Cowgill; Temple Blocks by Ethan Winer; Drumline Percussion by Michael Schorsch. Upstream attribution and MIT text: [FluidR3Mono_License.md](./FluidR3Mono_License.md), also published by [LibreScore](https://github.com/LibreScore/sf3/blob/master/FluidR3Mono_License.md).
+GeneralUser GS v2.0.3 by S. Christian Collins, from the [official repository](https://github.com/mrbumpy409/GeneralUser-GS) ([author's site](https://www.schristiancollins.com/generaluser)). License: [GeneralUser-GS-License.txt](./GeneralUser-GS-License.txt), which permits use in software projects and changes to the bank's packaging, and asks sites to host their own copy.
 
-**Redistribution status needs review:** this bank's `ICMT` metadata says “DO NOT REDISTRIBUTE ANY OF THESE SAMPLES”, while the upstream license says MIT. A [MuseScore discussion](https://musescore.org/en/comment/1210489) raised this conflict; I found no resolution. Bank remains unmodified.
+Converted from the official `GeneralUser-GS.sf2` to SF3 (Ogg Vorbis, libvorbis quality 6) to cut the download from 32.3 MB to 9.1 MB. Presets, instruments and sample data are otherwise unchanged. The author notes he cannot confirm the origin of every sample; see the license file.
 
 ## SONiVOX EAS assets
 

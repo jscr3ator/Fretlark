@@ -21,7 +21,7 @@ function render(metronome,countIn,change){
   return {seconds:frames/44100,peak:peak(),early:peak(0,.8),late:peak(2.6),volume:synth.metronomeVolume};
  }finally{synth.destroy();}
 }
-for(const bankName of ['FluidR3Mono_GM.sf3','sonivox.sf3']){
+for(const bankName of ['GeneralUser-GS.sf3','sonivox.sf3']){
  bank=new Uint8Array(fs.readFileSync('public/editor/vendor/soundfont/'+bankName));
 const off=render(0,0),metro=render(.6,0),count=render(0,.7),both=render(.6,.7),disabled=render(.6,0,{at:2,volume:0}),enabled=render(0,0,{at:1,volume:.6});
 assert.equal(off.peak,0,'Both off produces no clicks on a rest-only score');

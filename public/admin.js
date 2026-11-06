@@ -30,6 +30,7 @@
   const nextPath = /^\/(?!\/)[\w\-./?=&%]*$/.test(params.get('next') || '') ? params.get('next') : null;
   let recoveryDone = null;
   let authMode = 'login', signupShown = false, localOwner = 'guest', authChallenge = null;
+  let lastAuthMode = null;
   let forgotMethod = 'recovery';
   let resetToken = params.get('reset');
   const verifyToken = params.get('verify');
@@ -157,6 +158,15 @@
     node.classList.toggle('error', error);
   }
 
+  function showAccess() {
+    $('access').hidden = false;
+  }
+
+  function animateAuthSwap(element) {
+    if (!element || !element.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    element.animate([{opacity: 0}, {opacity: 1}], {duration: 180, easing: 'ease-out'});
+  }
+
   function normalizeSettings(value) {
     let settings = value || {};
     if (typeof settings === 'string') {
@@ -181,7 +191,8 @@
     registerNoMail: 'Pick a username and a password. You can create a recovery key later in Settings.',
     forgot: 'Enter your username and the recovery key you saved from Settings.',
     forgotEmail: "Enter your email and we'll send you a reset link.",
-    reset: 'Choose a new password. Every device will need to sign in again.'
+    reset: 'Choose a new password. Every device will need to sign in again.',
+    login: 'Use your Fretlark account to open your songs and shared links.'
   };
   function authSubmitText() {
     return authMode === 'forgot' && forgotMethod === 'email' ? 'Email me a reset link' : authButtons[authMode];
@@ -220,10 +231,13 @@
     $('password-toggle').setAttribute('aria-pressed', 'false');
     $('password-toggle').setAttribute('aria-label', 'Show password');
     $('password-hint').hidden = !newPassword;
-    const copy = reset ? authCopy.reset : forgotEmail ? authCopy.forgotEmail : forgot ? authCopy.forgot : registering ? (sessionState.mailEnabled ? authCopy.register : authCopy.registerNoMail) : '';
-    if (copy) $('access-message').textContent = copy;
-    else if (Object.values(authCopy).includes($('access-message').textContent)) $('access-message').textContent = '';
+    const copy = reset ? authCopy.reset : forgotEmail ? authCopy.forgotEmail : forgot ? authCopy.forgot : registering ? (sessionState.mailEnabled ? authCopy.register : authCopy.registerNoMail) : authCopy.login;
+    const current = $('access-message').textContent;
+    // Keep a server message (legacy note, connection error) when returning to sign in.
+    if (copy !== authCopy.login || !current || Object.values(authCopy).includes(current)) $('access-message').textContent = copy;
     status('auth-status', '');
+    if (lastAuthMode !== null && lastAuthMode !== authMode) animateAuthSwap($('auth-form'));
+    lastAuthMode = authMode;
   }
 
   function focusDescriptor(element) {
@@ -340,21 +354,6 @@
     const song = window.LocalSongs?.list(localOwner).find(song => `local:${song.id}` === id);
     return song && {...localCoverSource(song), local_id: song.id, track_count: song.tracks, bar_count: song.bars, tempo: song.tempo, updated_at: song.updatedAt};
   }
-  // source_format wins over the name because MIDI uploads are converted and stored as .gp files.
-  function songFormat(lesson) {
-    if (!lesson) return null;
-    if (lesson.source_format === 'midi') return {label: 'MIDI', kind: 'midi'};
-    const ext = /\.([a-z0-9]+)$/i.exec(String(lesson.file_name || ''))?.[1].toLowerCase();
-    if (['gp', 'gp3', 'gp4', 'gp5', 'gp6', 'gp7', 'gp8', 'gpx'].includes(ext)) return {label: 'GP', kind: 'gp'};
-    if (['xml', 'musicxml', 'mxl'].includes(ext)) return {label: 'XML', kind: 'xml'};
-    if (['mid', 'midi'].includes(ext)) return {label: 'MIDI', kind: 'midi'};
-    if (ext === 'atex') return {label: 'TEX', kind: 'tex'};
-    return null;
-  }
-  function formatTag(lesson) {
-    const format = songFormat(lesson);
-    return format ? `<span class="format-tag ${format.kind}">${format.label}</span>` : '';
-  }
   function coverHtml(lesson, className) {
     return `<span class="${className} cover" style="${coverStyle(lesson)}" data-cover-id="${esc(lesson.id)}" data-cover-key="${esc(JSON.stringify([lesson.id, lesson.title, lesson.artist]))}"><span class="cover-monogram">${monogram(lesson)}</span><img src="/admin-assets/doc.svg" alt=""></span>`;
   }
@@ -376,7 +375,7 @@
     if (latest) {
       const tracks = Number(latest.track_count) || 0, bars = Number(latest.bar_count) || 0, tempo = Number(latest.tempo) || 0;
       const others = recent.slice(1, 6);
-      $('resume').innerHTML = `<div class="resume-main">${coverHtml(latest, 'resume-cover')}<div class="resume-copy"><p class="eyebrow" id="resume-title">Last edited ${esc(ago(latest.updated_at))}</p><h2>${esc(latest.title || 'Untitled song')}</h2><p class="resume-artist">${esc(latest.artist || latest.file_name || '')}${formatTag(latest)}</p><p class="resume-meta">${plural(tracks, 'track')} · ${plural(bars, 'bar')}${tempo ? ` · ${tempo} BPM` : ''}</p><div class="resume-actions"><a class="button primary" href="/editor/index.html?lesson=${encodeURIComponent(latest.id)}"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a><button class="button" type="button" data-share-song="${esc(latest.id)}"><svg class="icon"><use href="#i-share"/></svg>Share</button><button class="button" type="button" data-open-song="${esc(latest.id)}">View Song</button></div></div></div>${others.length ? `<div class="resume-recent"><p class="eyebrow">Recent</p><ul>${others.map(lesson => `<li><div class="recent-row" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'recent-cover')}<span><span class="song-line"><strong>${esc(lesson.title || 'Untitled song')}</strong>${formatTag(lesson)}</span><small>${lesson.shared ? 'Shared · ' : ''}${esc(ago(lesson.updated_at))}</small></span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></div></li>`).join('')}</ul></div>` : ''}`;
+      $('resume').innerHTML = `<div class="resume-main">${coverHtml(latest, 'resume-cover')}<div class="resume-copy"><p class="eyebrow" id="resume-title">Last edited ${esc(ago(latest.updated_at))}</p><h2>${esc(latest.title || 'Untitled song')}</h2><p class="resume-artist">${esc(latest.artist || latest.file_name || '')}</p><p class="resume-meta">${plural(tracks, 'track')} · ${plural(bars, 'bar')}${tempo ? ` · ${tempo} BPM` : ''}</p><div class="resume-actions"><a class="button primary" href="/editor/index.html?lesson=${encodeURIComponent(latest.id)}"><svg class="icon"><use href="#i-pencil"/></svg>Open in Editor</a><button class="button" type="button" data-share-song="${esc(latest.id)}"><svg class="icon"><use href="#i-share"/></svg>Share</button><button class="button" type="button" data-open-song="${esc(latest.id)}">View Song</button></div></div></div>${others.length ? `<div class="resume-recent"><p class="eyebrow">Recent</p><ul>${others.map(lesson => `<li><div class="recent-row" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'recent-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${lesson.shared ? 'Shared · ' : ''}${esc(ago(lesson.updated_at))}</small></span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></div></li>`).join('')}</ul></div>` : ''}`;
     } else {
       $('resume').innerHTML = `<div class="resume-main"><div class="resume-copy"><h2 id="resume-title">Upload your first song</h2><p class="resume-artist">Or start a new one from scratch.</p><div class="resume-actions"><button class="button primary" type="button" data-upload-open><svg class="icon"><use href="#i-upload"/></svg>Upload Files</button><a class="button" href="/editor/index.html?new=1"><svg class="icon"><use href="#i-plus"/></svg>New Song</a></div></div></div>`;
       $('resume').querySelector('[data-upload-open]').addEventListener('click', openUpload);
@@ -385,7 +384,7 @@
     const shared = lessons.filter(lesson => lesson.shared).sort((a, b) => String(a.title).localeCompare(String(b.title)));
     $('link-table').innerHTML = shared.length ? shared.slice(0, 8).map(lesson => {
       const access = accessSummary(lesson);
-      return `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><span class="song-line"><strong>${esc(lesson.title || 'Untitled song')}</strong>${formatTag(lesson)}</span><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></div><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
+      return `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></div><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
     }).join('') + (shared.length > 8 ? `<button class="text-button more-links" type="button" data-goto-filter="shared">${shared.length - 8} more shared songs</button>` : '')
       : '<p class="panel-empty">Nothing shared yet.</p>';
     renderLocalSongs();
@@ -556,7 +555,7 @@
       const active = lesson.id === librarySelectedId;
       return `<div class="lesson-row${active ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(lesson.id)}" aria-pressed="${active}">
         ${coverHtml(lesson, 'song-mark')}
-        <span class="song-copy"><span class="song-line"><strong class="song-title">${title}</strong>${formatTag(lesson)}</span><span class="song-artist">${artist}</span></span>
+        <span class="song-copy"><strong class="song-title">${title}</strong><span class="song-artist">${artist}</span></span>
         <span class="song-meta">${lesson.shared ? '<svg class="icon shared-icon" role="img" aria-label="Shared"><use href="#i-link"/></svg>' : ''}${tracks} ${tracks === 1 ? 'track' : 'tracks'}</span>
         <svg class="icon row-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
       </div>`;
@@ -620,8 +619,7 @@
     else queueCover(cover);
     $('selected-title').textContent = lesson.title || 'Untitled song';
     const local = Boolean(lesson.local_id);
-    const artist = lesson.artist || (local ? '' : lesson.file_name || 'GP file');
-    $('selected-artist').innerHTML = `${esc(artist)}${formatTag(lesson)}`;
+    $('selected-artist').textContent = lesson.artist || (local ? '' : lesson.file_name || 'GP file');
     $('selected-artist').hidden = local && !lesson.artist;
     $('selected-state').textContent = local ? 'On this device' : lesson.shared ? 'Link shared' : 'Private';
     document.querySelector('.song-sharing').classList.toggle('is-shared', Boolean(lesson.shared));
@@ -683,13 +681,13 @@
       $('migration').hidden = !(passwordAccount && session.legacyMigrationAvailable);
 
       if (resetToken) {
-        $('access').hidden = false;
+        showAccess();
         setAuthMode('reset');
         return;
       }
       if (passwordAccount && nextPath) { location.replace(nextPath); return; }
       if (!passwordAccount) {
-        $('access').hidden = false;
+        showAccess();
         $('legacy-access-note').hidden = !session.legacyMigrationAvailable;
         $('access-message').textContent = session.authType === 'legacy'
           ? 'Your older sign-in is available. Create or sign in to a password account to manage your library and claim those songs.'
@@ -709,7 +707,7 @@
       render();
     } catch (error) {
       if ($('workspace').hidden) {
-        $('access').hidden = false;
+        showAccess();
         $('access-title').textContent = 'Sign in';
         $('access-message').textContent = error.message || 'Could not connect to Fretlark.';
         $('retry-access').hidden = false;
@@ -836,7 +834,7 @@
         : {email: identifier, password};
       const result=await api(`auth/${authMode}`, json('POST', payload));
       if(result.mfa_required){
-        authChallenge=result.challenge;$('auth-password').value='';$('auth-form').hidden=true;$('auth-switch').hidden=true;$('auth-factor-form').hidden=false;
+        authChallenge=result.challenge;$('auth-password').value='';$('auth-form').hidden=true;$('auth-switch').hidden=true;$('auth-factor-form').hidden=false;animateAuthSwap($('auth-factor-form'));
         $('access-title').textContent='Two-factor authentication';$('access-message').textContent='Enter a code to finish signing in.';status('auth-factor-status','');$('auth-factor-code').focus();return;
       }
       $('auth-password').value = '';
@@ -1614,7 +1612,7 @@
     }
   });
   accountControls=window.setupAccountControls({api,json,toast,openDialog,closeDialog,loadStorage,username:()=>localOwner,session:()=>sessionState,refreshSession});
-  $('auth-factor-back').addEventListener('click',()=>{setAuthMode('login');$('access-message').textContent='';$('auth-password').focus();});
+  $('auth-factor-back').addEventListener('click',()=>{setAuthMode('login');$('access-message').textContent=authCopy.login;$('auth-password').focus();});
   $('auth-factor-form').addEventListener('submit',async event=>{
     event.preventDefault();const button=$('auth-factor-submit');if(button.disabled)return;button.disabled=true;status('auth-factor-status','');
     try{

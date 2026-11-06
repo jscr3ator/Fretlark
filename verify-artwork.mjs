@@ -56,3 +56,14 @@ assert.equal((await findArtwork('Brand New Morning','Mira Vale',{fetcher:fallbac
 const noFuzzy=await findArtwork('Original','Artist',{cache:null,fetcher:async url=>Response.json(url.hostname==='itunes.apple.com'?{results:[]}:{data:[{type:'track',title:'Original (Live)',artist:{name:'Artist'},album:{id:1}},{type:'track',title:'Original',artist:{name:'Cover band'},album:{id:2}}]})});assert.equal(noFuzzy,null,'Fallback keeps exact recording and artist checks');
 assert.equal(chooseCover([{collectionId:1}],[{...album,source:'Deezer',artworkUrl100:'https://evil.dzcdn.net/a'}],'Fretlark'),null);
 console.log('PASS: Apple throttling falls back to verified Deezer album art, caches success and rejects wrong artists, versions and image hosts.');
+{
+ const remixOnly=[{type:'track',title:'Night Signal (Club Mix)',artist:{name:'Mira Vale'},album:{id:41}}];
+ const album=(id,tracks)=>({id,title:'Night Signal Deluxe',artist:{name:'Mira Vale'},release_date:'2014-03-01',cover_xl:'https://cdn-images.dzcdn.net/images/cover/n/1000x1000.jpg',tracks:{data:tracks}});
+ const run=albumTracks=>{const seen=[];return findArtwork('Night Signal','Mira Vale',{cache:null,fetcher:async url=>{seen.push(url);if(url.hostname==='itunes.apple.com')return Response.json({results:[]});
+  if(url.pathname==='/search')return Response.json({data:url.searchParams.get('q').startsWith('track:')?remixOnly:[]});return Response.json(album(41,albumTracks));}}).then(result=>({result,seen}));};
+ const found=await run([{title:'Night Signal (Remastered 2020)',artist:{name:'Mira Vale'}},{title:'Night Signal (Club Mix)',artist:{name:'Mira Vale'}}]);
+ assert.equal(found.result.album,'Night Signal Deluxe','An album whose track list holds the original is accepted');
+ assert.equal(found.seen.filter(u=>u.pathname==='/search'&&u.hostname==='api.deezer.com').length,2,'A miss gets one track-only search');
+ assert.equal((await run([{title:'Night Signal (Club Mix)',artist:{name:'Mira Vale'}}])).result,null,'A remix-only album is never used');
+}
+console.log('PASS: Deezer track-only search finds buried originals and rejects remix-only albums.');

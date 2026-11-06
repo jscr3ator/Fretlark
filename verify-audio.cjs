@@ -4,7 +4,7 @@ const path = require('node:path');
 const at = require('./public/editor/vendor/alphaTab.js');
 
 const sampleRate = 44100;
-const bank = fs.readFileSync(path.join(__dirname, 'public/editor/vendor/soundfont/FluidR3Mono_GM.sf3'));
+const bank = fs.readFileSync(path.join(__dirname, 'public/editor/vendor/soundfont/GeneralUser-GS.sf3'));
 const midi = new at.midi.MidiFile();
 const programs = [0, 24, 33, 40, 56, 73, 104, 112];
 const noteTicks = midi.division;
@@ -74,7 +74,7 @@ try {
     assert.ok(rms > .0001, `GM program ${program} rendered no useful signal`);
   }
 
-  console.log(`PASS: FluidR3Mono GM ${programs.length} representative programs; ${duration.toFixed(2)} s; A4 ${frequency.toFixed(1)} Hz; peak ${peak.toFixed(3)}; finite, unclipped stereo.`);
+  console.log(`PASS: GeneralUser GS ${programs.length} representative programs; ${duration.toFixed(2)} s; A4 ${frequency.toFixed(1)} Hz; peak ${peak.toFixed(3)}; finite, unclipped stereo.`);
 } finally {
   synth.destroy();
 }

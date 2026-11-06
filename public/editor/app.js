@@ -50,7 +50,7 @@
   function clearDigitEntry(){clearTimeout(digitTimer);digitBuffer='';digitUndoEntry=null;}
   // Respect a student's data-saving preference; all other devices use the richer bank.
   const compactAudio = navigator.connection?.saveData || ['slow-2g','2g'].includes(navigator.connection?.effectiveType);
-  const soundBank = compactAudio ? 'sonivox.sf3' : 'FluidR3Mono_GM.sf3';
+  const soundBank = compactAudio ? 'sonivox.sf3' : 'GeneralUser-GS.sf3';
   // SpessaSynth only replaces audio; alphaTab still generates the MIDI and drives the cursor.
   const canUseHifi = !diagnosticSilent && typeof AudioWorkletNode !== 'undefined' && (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined');
   hifiPending = canUseHifi;

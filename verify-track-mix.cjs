@@ -24,7 +24,7 @@ const event=()=>({listeners:[],on(fn){this.listeners.push(fn);},trigger(v){for(c
 const sink={sampleRate:44100,ready:event(),samplesPlayed:event(),sampleRequest:event(),open(){this.ready.trigger();},play(){},pause(){},destroy(){},addSamples(){},resetSamples(){},activate(){}};
 const synth=new at.synth.AlphaSynth(sink,100);
 try{
- const bank=new Uint8Array(fs.readFileSync('public/editor/vendor/soundfont/FluidR3Mono_GM.sf3'));
+ const bank=new Uint8Array(fs.readFileSync('public/editor/vendor/soundfont/GeneralUser-GS.sf3'));
  const midi=new at.midi.MidiFile();new at.midi.MidiFileGenerator(score,new at.Settings(),new at.midi.AlphaSynthMidiFileHandler(midi)).generate();synth.loadMidiFile(midi);synth.loadSoundFont(bank,false);
  const render=gain=>{const options=new at.synth.AudioExportOptions();options.sampleRate=44100;options.masterVolume=.75;options.trackVolume.set(track.playbackInfo.primaryChannel,gain);options.trackVolume.set(track.playbackInfo.secondaryChannel,gain);const exporter=synth.exportAudio(options,midi,[],new Map());const samples=exporter.render(2500).samples;let peak=0,energy=0;for(const n of samples){assert.ok(Number.isFinite(n));peak=Math.max(peak,Math.abs(n));energy+=n*n;}return {peak,rms:Math.sqrt(energy/samples.length)};};
  const old=render(.5),original=render(1),boosted=render(1.5),off=render(0);
@@ -64,7 +64,7 @@ async function verifySolo(){
  track.playbackInfo.isSolo=true;await context.balanceSoloLevels();assert.equal(context.trackPlaybackVolume(track),1,'Cancelled analysis cannot change restored mix');assert.equal(destroyed,2);
  // Real imported song and both deployed banks, synthesized into memory only.
  const reference=at.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(Buffer.from(fs.readFileSync('lib/reference-score.mjs','utf8').split("'")[1],'base64')));
- for(const bankName of ['FluidR3Mono_GM.sf3','sonivox.sf3']){
+ for(const bankName of ['GeneralUser-GS.sf3','sonivox.sf3']){
   const engine=new at.synth.AlphaSynth(sink,100);
   try{
    const midi=new at.midi.MidiFile();new at.midi.MidiFileGenerator(reference,new at.Settings(),new at.midi.AlphaSynthMidiFileHandler(midi)).generate();engine.loadMidiFile(midi);engine.loadSoundFont(new Uint8Array(fs.readFileSync('public/editor/vendor/soundfont/'+bankName)),false);
