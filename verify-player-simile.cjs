@@ -63,12 +63,14 @@ const firstBeats = bar => bar.voices[0].beats;
 // Normal beats pass through untouched, including a real written rest.
 {
   const staff = staffOf(load('3.3.4 r.2 1.3.4 | 2.3.4 |'));
-  for (const beat of firstBeats(staff.bars[0])) {
+  for (const beat of firstBeats(staff.bars[0]).filter(b => !b.isRest)) {
     assert.equal(repeatedBeats([beat], 9999)[0], beat, 'normal beat is returned unchanged');
   }
   const rest = firstBeats(staff.bars[0])[1];
   assert.ok(rest.isRest && !rest.isEmpty && rest.notes.length === 0, 'fixture has a real written rest');
-  assert.equal(repeatedBeats([rest], 0)[0], rest, 'a real written rest stays a rest');
+  assert.equal(repeatedBeats([rest], 0)[0], rest.nextBeat, 'a written rest shows the next sounding beat');
+  const only = staffOf(load('r.2 |')).bars[0].voices[0].beats[0];
+  assert.equal(repeatedBeats([only], 0)[0], only, 'a rest with nothing around it stays a rest');
 }
 
 // A simile bar at the very start of a staff has nothing to repeat: the original
@@ -80,7 +82,8 @@ const firstBeats = bar => bar.voices[0].beats;
   score.finish(new at.Settings());
   const placeholder = firstBeats(staffOf(score).bars[0])[0];
   assert.ok(placeholder.isEmpty || placeholder.isRest, 'leading simile bar holds a placeholder beat');
-  assert.equal(repeatedBeats([placeholder], 0)[0], placeholder, 'nothing to repeat returns the original beat');
+  const out = repeatedBeats([placeholder], 0)[0];
+  assert.ok(out === placeholder || out.notes.length > 0, 'nothing to repeat: no crash, original or next sounding beat');
 }
 
 // updateHand wiring: the offset is ticks since the highlighted beat started

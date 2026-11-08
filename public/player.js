@@ -77,16 +77,25 @@ function handContext(track,beats){
 // A repeat-bar sign (%) is stored as an empty bar that replays the bar before it (or the two bars
 // before it). Show the notes actually being played: the matching beat of the repeated bar.
 function repeatedBeats(beats,offset=0){
+ // A rest has no fingering, so the guide shows the next chord to play (or the last one if none follows).
+ const sounding=beat=>{
+  if(!beat||beat.notes.length||!beat.isRest)return beat;
+  for(const dir of ['nextBeat','previousBeat']){
+   let b=beat[dir];
+   for(let guard=0;b&&guard<24;guard++,b=b[dir])if(b.notes.length)return b;
+  }
+  return beat;
+ };
  return beats.map(beat=>{
   const bar=beat?.voice?.bar;
-  if(!bar?.simileMark||!(beat.isEmpty||beat.isRest))return beat;
+  if(!bar?.simileMark||!(beat.isEmpty||beat.isRest))return sounding(beat);
   let source=bar;
   for(let guard=0;source?.simileMark&&guard<16;guard++)source=source.staff.bars[source.index-(source.simileMark===1?1:2)];
-  if(!source||source===bar)return beat;
+  if(!source||source===bar)return sounding(beat);
   const voice=source.voices[beat.voice.index]||source.voices[0],candidates=(voice?.beats||[]).filter(b=>!b.isEmpty);
   let pick=candidates[0];
   for(const candidate of candidates)if(candidate.playbackStart<=offset)pick=candidate;
-  return pick||beat;
+  return sounding(pick||beat);
  });
 }
 function updateHand(beats=handBeats,animate=false){

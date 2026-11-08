@@ -90,7 +90,7 @@
         ${shared ? `<div class="setlist-link-field"><input id="setlist-url" readonly value="${esc(shareUrl)}" aria-label="Setlist link"><button class="button primary" type="button" data-setlist-copy><svg class="icon"><use href="#i-copy"/></svg>Copy</button></div><div class="link-meta"><span>Each song still needs its own link on.</span><span class="link-actions"><a class="text-button" href="${esc(shareUrl)}" target="_blank" rel="noopener">Open<svg class="icon"><use href="#i-external"/></svg></a><button class="text-button" type="button" data-setlist-rotate>Reset link</button></span></div>` : ''}
       </div>
       <div class="setlist-songs-head"><h3>Songs</h3><span class="panel-count">${songs.length}</span></div>
-      <div class="setlist-songs">${songs.length ? songs.map((song, index) => songRow(song, index, songs.length)).join('') : '<p class="setlist-hint">Add songs from your library below.</p>'}</div>
+      <div class="setlist-songs">${songs.length ? songs.map((song, index) => songRow(song, index, songs.length)).join('') : '<p class="setlist-empty">No songs yet. Add some from your library below.</p>'}</div>
       ${off.length ? '<p class="setlist-hint">Only songs with their link on appear in the shared setlist.</p><button class="button" type="button" data-setlist-turn-on>Turn on links</button>' : ''}
       <details class="setlist-add" open><summary>Add songs</summary><div class="setlist-add-body"><input id="setlist-song-search" type="search" placeholder="Search your songs" value="${esc(search)}" aria-label="Search your songs"><div id="setlist-add-list" class="setlist-add-list"></div></div></details>`;
     renderAddList();
