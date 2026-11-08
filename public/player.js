@@ -74,9 +74,25 @@ function handContext(track,beats){
  for(let b=base.nextBeat;b&&after.length<6;b=b.nextBeat)after.push(b);
  return {before,after,plan:true};
 }
+// A repeat-bar sign (%) is stored as an empty bar that replays the bar before it (or the two bars
+// before it). Show the notes actually being played: the matching beat of the repeated bar.
+function repeatedBeats(beats,offset=0){
+ return beats.map(beat=>{
+  const bar=beat?.voice?.bar;
+  if(!bar?.simileMark||!(beat.isEmpty||beat.isRest))return beat;
+  let source=bar;
+  for(let guard=0;source?.simileMark&&guard<16;guard++)source=source.staff.bars[source.index-(source.simileMark===1?1:2)];
+  if(!source||source===bar)return beat;
+  const voice=source.voices[beat.voice.index]||source.voices[0],candidates=(voice?.beats||[]).filter(b=>!b.isEmpty);
+  let pick=candidates[0];
+  for(const candidate of candidates)if(candidate.playbackStart<=offset)pick=candidate;
+  return pick||beat;
+ });
+}
 function updateHand(beats=handBeats,animate=false){
  handBeats=beats;if(!handVisible)return;
- const track=guideTrack(),lookup=animate&&track&&api.tickCache?.findBeat(new Set([track.index]),api.tickPosition),duration=Math.min(140,(lookup?.duration||300)/(api.playbackSpeed||1)*.4);
+ const track=guideTrack(),lookup=track&&api.tickCache?.findBeat(new Set([track.index]),api.tickPosition),duration=Math.min(140,(animate&&lookup?.duration||300)/(api.playbackSpeed||1)*.4);
+ beats=repeatedBeats(beats,lookup?.masterBar?Math.max(0,api.tickPosition-lookup.masterBar.start):0);
  const frame=handGuide.update(track,beats,{animate,duration,context:handContext(track,beats)});
  $('hand-caption').textContent=frame?.capo?'Capo '+frame.capo:'';$('hand-caption').hidden=!frame?.capo;
 }
