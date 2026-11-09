@@ -23,7 +23,7 @@ const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-
 env.ASSETS={async fetch(request){assert.equal(new URL(request.url).pathname,'/editor/demo.gp');return new Response(readFileSync('public/editor/demo.gp'),{headers:{'Content-Type':'application/octet-stream','Cache-Control':'public, max-age=3600'}});}};
 assert.deepEqual(readFileSync('public/editor/demo.gp'),Buffer.from(referenceScore,'base64'),'Static demo must preserve the reference GP');
 async function call(path,{method='GET',body,headers=teacher,raw=false}={}){const response=await handleApi(new Request('https://scores.test/api/'+path,{method,headers:{...(method!=='GET'?{origin:'https://scores.test'}:{}),...headers,...(body&&!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData||typeof body==='string'?body:body?JSON.stringify(body):undefined}),env);return {status:response.status,cookie:response.headers.get('set-cookie'),data:raw?new Uint8Array(await response.arrayBuffer()):await response.json()};}
-function upload(version=0,title='Lantern Road'){const form=new FormData();form.set('file',new File([Buffer.from(referenceScore,'base64')],'reference.gp'));for(const [key,value]of Object.entries({title,artist:'Fretlark',notes:'Loop bars 7–14 at 75%.',track_count:5,bar_count:54,tempo:120,version}))form.set(key,value);return form;}
+function upload(version=0,title='Lantern Road',trackCount=5){const form=new FormData();form.set('file',new File([Buffer.from(referenceScore,'base64')],'reference.gp'));for(const [key,value]of Object.entries({title,artist:'Fretlark',notes:'Loop bars 7–14 at 75%.',track_count:trackCount,bar_count:54,tempo:120,version}))form.set(key,value);return form;}
 assert.equal((await call('session',{headers:{}})).data.admin,false);
 assert.equal((await call('session')).data.admin,true);
 assert.equal((await call('admin/lessons',{headers:{}})).status,403);
@@ -65,7 +65,8 @@ assert.equal(lesson.share_token,token);assert.equal(objects.size,1);assert.equal
 assert.equal((await call(`shared/${token}`,{headers:{}})).data.title,'Updated score');
 lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{rotate:true}})).data;assert.notEqual(lesson.share_token,token);assert.equal((await call(`shared/${token}`,{headers:{}})).status,404);token=lesson.share_token;
 lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'DELETE'})).data;assert.equal((await call(`shared/${token}`,{headers:{}})).status,404);assert.equal((await call(`shared/${token}/artwork`,{headers:{}})).status,404,'Revoked tokens cannot retrieve artwork');
-lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{}})).data;assert.notEqual(lesson.share_token,token);assert.equal((await call(`shared/${token}`,{headers:{}})).status,404);
+// Turning sharing back on reopens the same link; only "Reset link" (rotate) makes a new one.
+lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{}})).data;assert.equal(lesson.share_token,token);assert.equal((await call(`shared/${token}`,{headers:{}})).status,200);
 assert.equal((await call(`admin/lessons/${lesson.id}`,{method:'DELETE'})).status,200);assert.equal(objects.size,0);assert.equal((await call('admin/lessons')).data.lessons.length,0);
 const rawBytes=new Uint8Array([1,2,3,4]);
 const rawHeaders={...teacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:rawBytes.length,title:'Streamed'}))};
@@ -170,7 +171,11 @@ claimed=(await call(`admin/lessons/${claimed.id}`,{method:'PATCH',headers:newTea
 assert.deepEqual((await call(`shared/${legacyToken}`,{headers:{}})).data.student_settings,{...studentSettings,allowed_tracks:null,allowed_notations:['both','standard','tab','slash','numbered']});
 claimed=(await call(`admin/lessons/${claimed.id}`,{method:'PATCH',headers:newTeacher,body:{version:claimed.version,title:claimed.title,artist:claimed.artist,notes:claimed.notes,student_settings:{...studentSettings,allowed_tracks:[0],allowed_notations:['tab']}}})).data;
 claimed=(await call(`admin/lessons/${claimed.id}/file`,{method:'PUT',headers:newTeacher,body:upload(claimed.version)})).data;
-assert.equal(claimed.shared,0);assert.deepEqual(claimed.student_settings.allowed_tracks,[]);
+// An edit with the same track count keeps the link live and the track picks.
+assert.equal(claimed.shared,1);assert.equal(claimed.share_token,legacyToken);assert.deepEqual(claimed.student_settings.allowed_tracks,[0]);
+assert.equal((await call(`shared/${legacyToken}`,{headers:{}})).status,200);
+claimed=(await call(`admin/lessons/${claimed.id}/file`,{method:'PUT',headers:newTeacher,body:upload(claimed.version,'Lantern Road',4)})).data;
+assert.equal(claimed.shared,0);assert.equal(claimed.share_token,legacyToken);assert.deepEqual(claimed.student_settings.allowed_tracks,[]);
 assert.equal((await call(`shared/${legacyToken}`,{headers:{}})).status,404);
 assert.equal((await call(`admin/lessons/${claimed.id}/share`,{method:'POST',headers:newTeacher,body:{}})).status,400);
 assert.equal((await call('auth/login',{method:'POST',headers:{},body:{email:'new',password:'bad'}})).data.error,(await call('auth/login',{method:'POST',headers:{},body:{email:'absent@example.test',password:'bad'}})).data.error);

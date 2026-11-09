@@ -360,6 +360,27 @@ export function createMixController(synth, channelsFor = trackChannels) {
   };
 }
 
+/**
+ * Synth output stage: makeup gain into a gentle compressor. Raw GM playback is quiet and very
+ * dynamic (rhythm parts sit far below solos), so this lifts the whole mix and keeps loud
+ * passages from clipping. Playback and exports share it so they sound the same.
+ */
+export const OUTPUT_STAGE = { makeup: 2.2, threshold: -20, knee: 12, ratio: 4, attack: 0.008, release: 0.25 };
+
+function createOutputStage(context) {
+  const input = context.createGain();
+  input.gain.value = OUTPUT_STAGE.makeup;
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.value = OUTPUT_STAGE.threshold;
+  compressor.knee.value = OUTPUT_STAGE.knee;
+  compressor.ratio.value = OUTPUT_STAGE.ratio;
+  compressor.attack.value = OUTPUT_STAGE.attack;
+  compressor.release.value = OUTPUT_STAGE.release;
+  input.connect(compressor);
+  compressor.connect(context.destination);
+  return input;
+}
+
 function scheduleCountInClick(context, when, accented, volume) {
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -395,7 +416,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     BasicMIDI = module.BasicMIDI;
     synth = new WorkletSynthesizer(context);
     guardSynthMessages(synth);
-    synth.connect(context.destination);
+    synth.connect(createOutputStage(context));
 
     const response = await fetch(soundFontUrl);
     if (!response.ok) throw Error(`Sound bank could not be loaded (${response.status})`);
@@ -734,7 +755,8 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       await offlineContext.audioWorklet.addModule(processor);
       offlineSynth = new WorkletSynthesizer(offlineContext, { eventsEnabled: false });
       guardSynthMessages(offlineSynth);
-      offlineSynth.connect(offlineContext.destination);
+      // Level measurements read the raw track; exports get the same output stage as playback.
+      offlineSynth.connect(measure ? offlineContext.destination : createOutputStage(offlineContext));
 
       if (isCancelled?.()) {
         try { offlineSynth.destroy(); } catch {}
@@ -834,6 +856,9 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       applyMaster();
     },
     seekTo(milliseconds) {
+      // With a count-in, alphaTab's play() reports a seek to 0 on its count-in clock. That is not a
+      // song position; taking it would restart the song from the top after every pause.
+      if (api.player?._instance?.sequencer?.isPlayingCountIn) return;
       const seconds = alphaTabMsToSongSeconds(milliseconds, state.speed);
       state.seekSeconds = Math.max(0, seconds);
       const tick = Number(api.tickPosition);

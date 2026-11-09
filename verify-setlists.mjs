@@ -145,7 +145,7 @@ const off = await call(`admin/setlists/${main.id}/share`, {method: 'DELETE', hea
 assert.equal(off.data.shared, 0);
 assert.equal((await call(`shared-set/${setToken}`, {headers: {}})).status, 404, 'turning the link off revokes it');
 const again = await call(`admin/setlists/${main.id}/share`, {method: 'POST', headers: alice, body: {rotate: false}});
-assert.notEqual(again.data.share_token, setToken, 'turning the link back on revokes the old token');
+assert.equal(again.data.share_token, setToken, 'turning the link back on reopens the same link');
 setToken = again.data.share_token;
 assert.equal((await call(`shared-set/${setToken}`, {headers: {}})).status, 200);
 
