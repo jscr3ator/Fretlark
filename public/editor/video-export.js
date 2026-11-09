@@ -21,6 +21,8 @@
 
   let lesson = null, fileBytes = null, score = null, api = null, art = null;
   let partials = [], strip = {w: 0, h: 0}, renderToken = 0, rendering = null;
+  let renderedPartials = [];
+  let renderQueue = Promise.resolve();
   let artPromise = null, fontsReady = null;
   let busy = false, cancelled = false;
   const opts = () => ({
@@ -61,12 +63,44 @@
     });
     const hide = ['ScoreTitle', 'ScoreSubTitle', 'ScoreArtist', 'ScoreAlbum', 'ScoreWords', 'ScoreMusic', 'ScoreWordsAndMusic', 'ScoreCopyright', 'GuitarTuning', 'TrackNames', 'ChordDiagrams'];
     for (const name of hide) if (at.NotationElement[name] !== undefined) api.settings.notation.elements.set(at.NotationElement[name], false);
-    api.playerReady.on(() => { playerReady = true; readyWaiters.splice(0).forEach(fn => fn()); });
-    api.renderFinished.on(() => { rendering?.(); });
-    api.error.on(error => { console.error(error); say(`Couldn’t draw this track. Try another track or “Notation and tab”.`, true); rendering?.(); });
+    api.renderStarted.on(() => { renderedPartials = []; });
+    api.renderer.partialRenderFinished.on(result => {
+      if (result.firstMasterBarIndex >= 0 && result.renderResult) renderedPartials.push({
+        el: result.renderResult, x: result.x, y: result.y, w: result.width, h: result.height
+      });
+    });
+    api.playerReady.on(() => {
+      playerReady = true; readyWaiters.splice(0).forEach(fn => fn());
+      if (!busy && partials.length) preview();
+    });
+    api.postRenderFinished.on(() => { rendering?.resolve(); });
+    api.error.on(error => {
+      console.error(error); say(`Couldn’t prepare this track: ${error.message || error}`, true);
+      rendering?.reject(error);
+    });
   }
   let playerReady = false; const readyWaiters = [];
   const whenPlayerReady = () => playerReady ? Promise.resolve() : new Promise(resolve => readyWaiters.push(resolve));
+  // Export waits on the player before synthesizing; cancelling must interrupt that wait,
+  // otherwise the page sits on "Loading instruments…" with no way out when the soundfont stalls.
+  const cancelWaiters = [];
+  const cancelError = () => Object.assign(Error('cancelled'), {cancelled: true});
+  const whenCancellable = () => new Promise((_, reject) => cancelWaiters.push(() => reject(cancelError())));
+
+  function prepareVideoScore(score) {
+    // Expand imported multi-bar rests in this export-only copy so each silent bar
+    // has geometry. The library file and its print settings stay unchanged.
+    score.stylesheet.multiTrackMultiBarRest = false;
+    score.stylesheet.perTrackMultiBarRest?.clear();
+    // Simile bars contain placeholder rests; show the repeat symbol without a rest over it.
+    for (const track of score.tracks) for (const staff of track.staves) for (const bar of staff.bars) {
+      if (bar.simileMark === at.model.SimileMark.None) continue;
+      for (const voice of bar.voices) for (const beat of voice.beats) if (beat.isRest) {
+        beat.style ||= new at.model.BeatStyle();
+        for (const part of ['GuitarTabRests', 'StandardNotationRests']) beat.style.colors.set(at.model.BeatSubElement[part], at.model.Color.fromJson('#00000000'));
+      }
+    }
+  }
 
   function applyTheme(theme) {
     const res = api.settings.display.resources, t = THEMES[theme];
@@ -79,7 +113,7 @@
   }
 
   async function renderScore() {
-    const o = opts(), token = ++renderToken;
+    const o = opts();
     api.settings.display.scale = SCALES[o.format][o.staff];
     // Tracks without tab (vocals, drums, piano) can't be drawn as "Tab only"; show their notation instead.
     const track = score.tracks[o.track];
@@ -89,47 +123,52 @@
     $('staff-note').hidden = hasTab;
     applyTheme(o.theme);
     api.updateSettings();
-    const done = new Promise(resolve => { rendering = resolve; });
-    api.renderScore(score, [o.track]);
-    await done;
-    // Let the html5 engine attach its last canvases.
-    await new Promise(resolve => setTimeout(resolve, 60));
-    if (token !== renderToken) return false;
+    const done = new Promise((resolve, reject) => { rendering = {resolve, reject}; });
+    try { api.renderScore(score, [o.track]); await done; }
+    finally { rendering = null; }
     collectPartials();
+    if (!partials.length) throw Error('No tab could be drawn for this track.');
+    beatHint = null;
     return true;
   }
 
   function collectPartials() {
-    const host = $('score-host'), surface = host.querySelector('.at-surface') || host;
-    const base = surface.getBoundingClientRect();
-    partials = [...surface.querySelectorAll('canvas')].map(el => {
-      const r = el.getBoundingClientRect();
-      return {el, x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height};
-    }).filter(p => p.w > 0 && p.h > 0);
-    // Keep only the score row; alphaTab adds a small credit line as a separate strip underneath.
-    const rowY = Math.min(...partials.map(p => p.y));
-    partials = partials.filter(p => Math.abs(p.y - rowY) < 2);
+    // The offscreen DOM may retain old canvases until its UI callbacks run. Capture
+    // only this render's score tiles, with geometry supplied by the renderer itself.
+    partials = renderedPartials.filter(p => p.w > 0 && p.h > 0);
     strip = {w: Math.max(0, ...partials.map(p => p.x + p.w)), h: Math.max(0, ...partials.map(p => p.y + p.h))};
   }
 
   // Tick -> x on the strip, interpolated between the current beat and the next one.
-  let beatHint = null;
+  let beatHint = null, lastTickCache = null;
   function xForTick(tick, track) {
     const lookup = api.tickCache, bounds = api.boundsLookup;
     if (!lookup || !bounds) return 0;
+    if (lookup !== lastTickCache) { beatHint = null; lastTickCache = lookup; }
+    // Playback ticks are already unfolded through repeats. Locate the played bar even
+    // when the selected track is silent or its MIDI beats refer to a simile source bar.
+    const bars = lookup.masterBars;
+    if (!bars.length) return 0;
+    let lo = 0, hi = bars.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (tick >= bars[mid].end) lo = mid + 1; else hi = mid;
+    }
+    const bar = bars[lo], barBounds = bounds.findMasterBarByIndex(bar.masterBar.index);
+    if (!barBounds) return 0;
+    const endX = barBounds.realBounds.x + barBounds.realBounds.w;
     const found = lookup.findBeat(new Set([track]), tick, beatHint);
-    if (!found) return beatHint ? xOf(beatHint) : 0;
     beatHint = found;
-    return xOf(found, tick);
-  }
-  function xOf(found, tick = found.start) {
-    const bb = api.boundsLookup.findBeat(found.beat);
-    if (!bb) return 0;
-    const x0 = bb.visualBounds.x;
-    const next = found.nextBeat ? api.boundsLookup.findBeat(found.nextBeat.beat) : null;
-    const x1 = next && next.visualBounds.x > x0 ? next.visualBounds.x : bb.visualBounds.x + bb.visualBounds.w;
-    const span = found.tickDuration || (found.end - found.start) || 1;
-    const f = Math.max(0, Math.min(1, (tick - found.start) / span));
+    const bb = found && found.masterBar === bar && found.beat.voice.bar.index === bar.masterBar.index
+      ? bounds.findBeat(found.beat) : null;
+    const x0 = bb ? bb.onNotesX : barBounds.realBounds.x;
+    const nextBeat = found?.nextBeat;
+    const sequential = nextBeat && (nextBeat.masterBar === bar || nextBeat.masterBar.masterBar.index === bar.masterBar.index + 1);
+    const next = bb && sequential ? bounds.findBeat(nextBeat.beat) : null;
+    const x1 = next && next.onNotesX > x0 ? next.onNotesX : endX;
+    const start = bb ? found.start : bar.start;
+    const span = bb ? found.tickDuration : bar.end - bar.start;
+    const f = Math.max(0, Math.min(1, (tick - start) / (span || 1)));
     return x0 + (x1 - x0) * f;
   }
 
@@ -169,6 +208,7 @@
     const top = L.stripTop + (band - strip.h * k) / 2;
     const playhead = Math.round(L.w * 0.3);
     const offset = playhead - x * k;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, L.stripTop, L.w, band); ctx.clip();
     for (const p of partials) {
       const dx = offset + p.x * k, dw = p.w * k;
       if (dx + dw < 0 || dx > L.w) continue;
@@ -181,6 +221,7 @@
       ctx.fillStyle = g; ctx.fillRect(x0, L.stripTop, x1 - x0, band);
     }
     ctx.fillStyle = T.accent; ctx.globalAlpha = .9; roundRect(ctx, playhead - 3, top - 18, 6, strip.h * k + 36, 3); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.restore();
     // Footer: progress, time and the wordmark.
     const barY = L.footerY, barW = L.w - L.pad * 2;
     ctx.fillStyle = T.faint; roundRect(ctx, L.pad, barY, barW, 8, 4); ctx.fill();
@@ -200,19 +241,29 @@
     beatHint = null;
     drawFrame(canvas.getContext('2d'), o, xForTick(0, o.track) || 0, 0, previewTotal());
   }
-  const previewTotal = () => { const o = opts(); const s = songSeconds || 0; return o.length === 'full' ? Math.min(MAX_SECONDS, s || MAX_SECONDS) : Math.min(Number(o.length), s || Number(o.length)); };
-  let songSeconds = 0;
+  function songSeconds() {
+    let seconds = 0;
+    for (const bar of api.tickCache?.masterBars || []) {
+      const changes = bar.tempoChanges;
+      for (let i = 0; i < changes.length; i++) {
+        const end = changes[i + 1]?.tick ?? bar.end;
+        seconds += (end - changes[i].tick) / 960 * 60 / changes[i].tempo;
+      }
+    }
+    return seconds;
+  }
+  const previewTotal = () => { const o = opts(); const s = songSeconds(); return o.length === 'full' ? Math.min(MAX_SECONDS, s) : Math.min(Number(o.length), s); };
 
   // ---------- audio ----------
   async function renderAudio(limitSeconds, onProgress) {
-    await whenPlayerReady();
+    if (!playerReady) await Promise.race([whenPlayerReady(), whenCancellable()]);
     const options = new at.synth.AudioExportOptions();
     options.sampleRate = SAMPLE_RATE; options.masterVolume = 1; options.metronomeVolume = 0;
     const solo = score.tracks.some(t => t.playbackInfo.isSolo);
     for (const t of score.tracks) options.trackVolume.set(t.index, t.playbackInfo.isMute || (solo && !t.playbackInfo.isSolo) ? 0 : t.playbackInfo.volume / 16);
     const exporter = await api.exportAudio(options);
     const chunks = [], map = [{time: 0, tick: 0}];
-    let frames = 0;
+    let frames = 0, cutShort = false;
     try {
       while (!cancelled) {
         const chunk = await exporter.render(100);
@@ -221,17 +272,20 @@
         // currentTick is where this chunk ends; time it by the samples rendered so far (currentTime is the chunk's start).
         map.push({time: frames / SAMPLE_RATE, tick: chunk.currentTick});
         onProgress?.(Math.min(1, chunk.currentTime / (Math.min(chunk.endTime, limitSeconds * 1000) || 1)));
-        if (frames / SAMPLE_RATE >= limitSeconds) break;
+        if (frames / SAMPLE_RATE >= limitSeconds) { cutShort = true; break; }
       }
     } finally { exporter.destroy?.(); }
     const total = Math.min(frames, Math.round(limitSeconds * SAMPLE_RATE));
     const pcm = new Float32Array(total * 2);
     let at_ = 0;
     for (const c of chunks) { const n = Math.min(c.length, pcm.length - at_); if (n <= 0) break; pcm.set(c.subarray(0, n), at_); at_ += n; }
-    // Fade the last half second when the clip is cut short, so it doesn't end on a click.
-    const fade = Math.min(total, Math.round(SAMPLE_RATE * .5));
-    for (let i = 0; i < fade; i++) { const g = i / fade, j = (total - 1 - i) * 2; pcm[j] *= g; pcm[j + 1] *= g; }
-    return {pcm, frames: total, map};
+    // Fade the last half second only when the clip is cut short, so a length-limited
+    // export doesn't end on a click. A song that played to its end keeps its own decay.
+    if (cutShort) {
+      const fade = Math.min(total, Math.round(SAMPLE_RATE * .5));
+      for (let i = 0; i < fade; i++) { const g = i / fade, j = (total - 1 - i) * 2; pcm[j] *= g; pcm[j + 1] *= g; }
+    }
+    return {pcm, frames: total, map, cutShort};
   }
 
   function tickAt(map, seconds, hint) {
@@ -343,11 +397,11 @@
 
   // Wait until the encoder has drained a slot, using its dequeue event instead of polling with timers.
   function waitForEncoder(encoder, limit) {
-    if (encoder.encodeQueueSize <= limit) return Promise.resolve();
+    if (encoder.encodeQueueSize <= limit || cancelled) return Promise.resolve();
     if (!('ondequeue' in encoder)) return new Promise(resolve => setTimeout(resolve, 4));
     return new Promise(resolve => {
       const check = () => {
-        if (encoder.encodeQueueSize > limit) return;
+        if (encoder.encodeQueueSize > limit && !cancelled) return;
         encoder.removeEventListener('dequeue', check);
         resolve();
       };
@@ -358,7 +412,8 @@
 
   // ---------- export ----------
   async function exportVideo() {
-    if (busy) { cancelled = true; return; }
+    if (busy) { cancelled = true; cancelWaiters.splice(0).forEach(fn => fn()); return; }
+    if (rendering || $('export').disabled) return;
     busy = true; cancelled = false; setBusy(true);
     $('result').hidden = true;
     try {
@@ -376,6 +431,7 @@
       const [config, aacOk] = await Promise.all([configPromise, aacPromise]);
       if (cancelled) throw Object.assign(Error('cancelled'), {cancelled: true});
       await artSettled;
+      if (cancelled) throw Object.assign(Error('cancelled'), {cancelled: true});
       if (!config) { await exportByFrames(o, L, audio); return; }
       const seconds = audio.frames / SAMPLE_RATE;
       const totalFrames = Math.max(1, Math.round(seconds * FPS));
@@ -405,7 +461,7 @@
         drawFrame(ctx, o, xForTick(tickAt(audio.map, t, hint), o.track), t, seconds);
         const frame = new VideoFrame(canvas, {timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS)});
         encoder.encode(frame, {keyFrame: i % (FPS * 2) === 0}); frame.close();
-        while (encoder.encodeQueueSize > 8 && !failure) await waitForEncoder(encoder, 8);
+        while (encoder.encodeQueueSize > 8 && !failure && !cancelled) await waitForEncoder(encoder, 8);
         if (i % 30 === 0) { say(`Making video… ${Math.round(i / totalFrames * 100)}%`); progress(.25 + .7 * i / totalFrames); await yieldTask(); }
       }
       if (cancelled) { encoder.close(); throw Object.assign(Error('cancelled'), {cancelled: true}); }
@@ -416,6 +472,7 @@
       say('Finishing…'); progress(.97);
       if (aacOk) {
         const encodedAudio = await audioEncoding;
+        audio.pcm = null;
         const blob = Mux.mux({video: {width: L.w, height: L.h, fps: FPS, description, samples}, audio: encodedAudio});
         deliver(blob, o, 'mp4');
         return;
@@ -446,7 +503,7 @@
       progress(null);
       if (error?.cancelled) say('Export cancelled.');
       else { console.error(error); say(`Couldn’t make the video: ${error?.message || error}`, true); }
-    } finally { busy = false; setBusy(false); }
+    } finally { busy = false; cancelWaiters.length = 0; setBusy(false); }
   }
 
   function deliver(blob, o, ext) {
@@ -482,7 +539,13 @@
     const canvas = Object.assign(document.createElement('canvas'), {width, height});
     const ctx = canvas.getContext('2d', {alpha: false});
     const seconds = audio.frames / SAMPLE_RATE, total = Math.max(1, Math.round(seconds * FPS)), batch = FPS * 8;
-    const encodeJpeg = () => new Promise((resolve, reject) => canvas.toBlob(blob => blob ? blob.arrayBuffer().then(resolve, reject) : reject(Error('Could not capture a frame.')), 'image/jpeg', .92));
+    // Async canvas blob encoding is heavily throttled in background tabs. Encode
+    // these 720p frames directly, yielding between frames for progress and cancellation.
+    const encodeJpeg = () => {
+      const url = canvas.toDataURL('image/jpeg', .92);
+      if (!url.startsWith('data:image/jpeg;base64,')) throw Error('Could not capture a frame.');
+      return Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), c => c.charCodeAt(0)).buffer;
+    };
     let wakeLock = null;
     try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
     try {
@@ -497,7 +560,8 @@
           const t = f / FPS;
           ctx.setTransform(s, 0, 0, s, 0, 0);
           drawFrame(ctx, o, xForTick(tickAt(audio.map, t, hint), o.track), t, seconds);
-          frames.push(await encodeJpeg());
+          frames.push(encodeJpeg());
+          if (f % 10 === 0) await yieldTask();
         }
         nextFrame = to;
         return frames;
@@ -516,6 +580,7 @@
       }
       say('Adding the audio…');
       const wavBytes = wav(audio.pcm, audio.frames);
+      audio.pcm = null;
       const result = await job('finish', {segments, audio: wavBytes}, p => progress(.93 + .06 * p), [wavBytes]);
       deliver(new Blob([result.mp4], {type: 'video/mp4'}), o, 'mp4');
     } finally { try { await wakeLock?.release(); } catch {} }
@@ -554,13 +619,15 @@
   }
 
   // ---------- startup ----------
-  let rerenderTimer = null;
   async function rerender() {
-    clearTimeout(rerenderTimer);
-    rerenderTimer = setTimeout(async () => {
-      say('Updating preview…');
-      if (await renderScore()) { preview(); say(''); }
-    }, 120);
+    const token = ++renderToken;
+    $('export').disabled = true;
+    say('Updating preview…');
+    // Serialize renders so a quick track/format change cannot mix old canvases with new bounds.
+    renderQueue = renderQueue.catch(() => {}).then(() => token === renderToken && renderScore());
+    try {
+      if (await renderQueue && token === renderToken) { preview(); say(''); $('export').disabled = false; }
+    } catch (error) { if (token === renderToken) say(`Couldn’t draw this track: ${error.message}`, true); }
   }
 
   async function start() {
@@ -588,6 +655,7 @@
     try {
       const settings = api.settings;
       score = /\.atex$/i.test(lesson.file_name || '') ? at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(fileBytes), settings) : at.importer.ScoreLoader.loadScoreFromBytes(fileBytes, settings);
+      prepareVideoScore(score);
     } catch (error) { say(`Couldn’t open this song: ${error.message}`, true); return; }
     const select = $('opt-track');
     select.innerHTML = score.tracks.map((t, i) => `<option value="${i}">${(t.name || `Track ${i + 1}`).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]))}</option>`).join('');
@@ -595,15 +663,13 @@
     const tabbed = score.tracks.filter(t => !t.isPercussion && t.staves.some(st => st.showTablature && st.tuning?.length));
     const pick = tabbed.find(t => /guitar|gtr/i.test(t.name || '')) || tabbed[0] || score.tracks[0];
     select.value = String(pick ? pick.index : 0);
-    // Rough song length for the preview clock; the export uses the real audio length.
-    try { songSeconds = score.masterBars.reduce((sum, bar) => sum + (bar.timeSignatureNumerator * 4 / bar.timeSignatureDenominator) * 60 / (bar.tempoAutomations?.[0]?.value || score.tempo || 120), 0); } catch { songSeconds = 0; }
-    // The first preview does not wait for the artwork, the soundfont or the player.
-    await fontsReady;
-    say('Rendering…');
-    if (await renderScore()) { preview(); say(''); }
-    $('export').disabled = false;
+    // Listeners attach before the first render so a quick option change during
+    // "Rendering…" queues a proper rerender instead of exporting stale geometry.
     $('options').addEventListener('change', event => { if (event.target.id === 'opt-length') preview(); else rerender(); });
     $('export').addEventListener('click', exportVideo);
+    // The first preview does not wait for the artwork, the soundfont or the player.
+    await fontsReady;
+    await rerender();
     // The artwork and its lookup finish whenever they finish; redraw once it is available.
     artworkRequest.then(image => {
       art = image;

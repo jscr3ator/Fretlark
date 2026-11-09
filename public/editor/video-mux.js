@@ -5,6 +5,7 @@
   const u8 = values => Uint8Array.from(values);
   const u16 = n => u8([n >> 8 & 255, n & 255]);
   const u32 = n => u8([n >>> 24 & 255, n >>> 16 & 255, n >>> 8 & 255, n & 255]);
+  const u64 = n => concat([u32(Math.floor(n / 0x100000000)), u32(n % 0x100000000)]);
   const str = s => enc.encode(s);
   const zeros = n => new Uint8Array(n);
   function concat(parts) {
@@ -19,6 +20,14 @@
   const matrix = () => concat([u32(0x00010000), u32(0), u32(0), u32(0), u32(0x00010000), u32(0), u32(0), u32(0), u32(0x40000000)]);
   // MPEG-4 descriptors use a tag byte and a 4-byte variable length.
   const descriptor = (tag, ...parts) => { const body = concat(parts); const n = body.length; return concat([u8([tag, 0x80 | (n >> 21 & 127), 0x80 | (n >> 14 & 127), 0x80 | (n >> 7 & 127), n & 127]), body]); };
+  // Boxes over 4 GB use size=1 followed by a 64-bit largesize (which includes the 16-byte header).
+  const mdatHeader = size => size + 8 > 0xffffffff
+    ? concat([u32(1), str('mdat'), u64(size + 16)])
+    : concat([u32(size + 8), str('mdat')]);
+  // 32-bit chunk offsets cannot reach past 4 GB; those tracks need co64 instead.
+  const chunkOffset = (offset, large) => large
+    ? full('co64', 0, 0, u32(1), u64(offset))
+    : full('stco', 0, 0, u32(1), u32(offset));
 
   function videoEntry(v) {
     return box('avc1', zeros(6), u16(1), zeros(16), u16(v.width), u16(v.height), u32(0x00480000), u32(0x00480000), u32(0), u16(1), zeros(32), u16(0x18), u16(0xffff), box('avcC', v.description));
@@ -34,7 +43,7 @@
     return box('sowt', zeros(6), u16(1), u16(0), u16(0), u32(0), u16(a.channels), u16(16), u16(0), u16(0), u32(a.sampleRate * 65536 >>> 0));
   }
 
-  function track({id, kind, timescale, duration, movieDuration, entry, stts, stss, ctts, edit, sizes, sampleSize, sampleCount, offset, width = 0, height = 0}) {
+  function track({id, kind, timescale, duration, movieDuration, entry, stts, stss, ctts, edit, sizes, sampleSize, sampleCount, offset, co64 = false, width = 0, height = 0}) {
     const video = kind === 'video';
     const tkhd = full('tkhd', 0, 3, u32(0), u32(0), u32(id), u32(0), u32(movieDuration), zeros(8), u16(0), u16(0), u16(video ? 0 : 0x0100), u16(0), matrix(), u32(width * 65536 >>> 0), u32(height * 65536 >>> 0));
     const mdhd = full('mdhd', 0, 0, u32(0), u32(0), u32(timescale), u32(duration), u16(0x55c4), u16(0));
@@ -48,15 +57,16 @@
       ctts ? full('ctts', 0, 0, u32(ctts.length), ctts.map(([count, delta]) => [u32(count), u32(delta)])) : null,
       full('stsc', 0, 0, u32(1), u32(1), u32(sampleCount), u32(1)),
       sizes ? full('stsz', 0, 0, u32(0), u32(sizes.length), sizes.map(u32)) : full('stsz', 0, 0, u32(sampleSize), u32(sampleCount)),
-      full('stco', 0, 0, u32(1), u32(offset)));
+      chunkOffset(offset, co64));
     // With reordered (B) frames the edit list skips the decoder delay so the first frame shows at 0.
-    const edts = edit ? box('edts', full('elst', 0, 0, u32(1), u32(movieDuration), u32(edit), u32(0x00010000))) : null;
+    const edts = edit != null ? box('edts', full('elst', 0, 0, u32(1), u32(movieDuration), u32(edit), u32(0x00010000))) : null;
     return box('trak', tkhd, edts, box('mdia', mdhd, hdlr, box('minf', header, dinf, stbl)));
   }
 
   /**
-   * video: {width, height, fps, description: avcC bytes, samples: [{data, key}]}
-   * audio: {codec: 'aac'|'pcm', sampleRate, channels, bitrate?, description?, samples?: [Uint8Array] (AAC frames), pcm?: Uint8Array}
+   * video: {width, height, fps, description: avcC bytes, samples: [{data, key, pts?}]}
+   * audio: {codec: 'aac'|'pcm', sampleRate, channels, bitrate?, description?, samples?: [Uint8Array] (AAC frames),
+   *         pcm?: Uint8Array, priming?: samples to skip for AAC, frames?: real presentation sample count}
    * Returns a Blob: .mp4 for AAC, QuickTime .mov for PCM (both upload fine to Instagram and TikTok).
    */
   function mux({video, audio}) {
@@ -64,34 +74,53 @@
     const ftyp = mov ? box('ftyp', str('qt  '), u32(0x20050300), str('qt  ')) : box('ftyp', str('isom'), u32(0x200), str('isom'), str('iso2'), str('avc1'), str('mp41'));
     const videoBytes = video.samples.reduce((sum, s) => sum + s.data.length, 0);
     const audioBytes = mov ? audio.pcm.length : audio.samples.reduce((sum, s) => sum + s.length, 0);
-    const mdatHeader = concat([u32(8 + videoBytes + audioBytes), str('mdat')]);
-    const videoOffset = ftyp.length + mdatHeader.length, audioOffset = videoOffset + videoBytes;
+    const mdat = mdatHeader(videoBytes + audioBytes);
     const vScale = video.fps * 1000, vCount = video.samples.length, vDuration = vCount * 1000;
-    const aFrames = mov ? audio.pcm.length / (2 * audio.channels) : audio.samples.length * 1024;
-    const movieMs = Math.round(Math.max(vCount / video.fps, aFrames / audio.sampleRate) * 1000);
+    // AAC encoders prepend one frame of priming; an edit list skips it so audio lines up with frame 0.
+    const rawAudioFrames = mov ? audio.pcm.length / (2 * audio.channels) : audio.samples.length * 1024;
+    const aacPriming = mov ? 0 : Math.max(0, Math.min(rawAudioFrames, Number.isFinite(audio.priming) ? audio.priming : 1024));
+    const audioFrames = mov ? rawAudioFrames : Math.max(0, Number.isFinite(audio.frames) ? Math.min(audio.frames, rawAudioFrames) : rawAudioFrames - aacPriming);
+    const movieMs = Math.round(Math.max(vCount / video.fps, audioFrames / audio.sampleRate) * 1000);
     const keys = []; video.samples.forEach((s, i) => { if (s.key) keys.push(i + 1); });
     // Composition offsets for encoders that emit B-frames (decode order differs from display order).
-    let ctts = null, edit = 0;
-    if (video.samples.some((s, i) => Number.isFinite(s.pts) && s.pts !== i)) {
-      const delay = Math.max(0, ...video.samples.map((s, i) => i - s.pts));
-      const offsets = video.samples.map((s, i) => (s.pts + delay - i) * 1000);
+    // Normalize against the first displayed timestamp, which some encoders start above zero.
+    const rawPts = video.samples.map((s, i) => Number.isFinite(s.pts) ? s.pts : i);
+    let basePts = Infinity;
+    for (const p of rawPts) basePts = Math.min(basePts, p);
+    const pts = rawPts.map(p => p - basePts);
+    let ctts = null, edit = null;
+    if (pts.some((p, i) => p !== i)) {
+      let delay = 0;
+      for (let i = 0; i < pts.length; i++) delay = Math.max(delay, i - pts[i]);
+      const offsets = pts.map((p, i) => (p + delay - i) * 1000);
       ctts = [];
       for (const value of offsets) { const last = ctts[ctts.length - 1]; if (last && last[1] === value) last[0]++; else ctts.push([1, value]); }
-      edit = delay * 1000;
+      edit = delay ? delay * 1000 : null;
     }
-    const vTrak = track({id: 1, kind: 'video', timescale: vScale, duration: vDuration, movieDuration: Math.round(vCount / video.fps * 1000),
-      entry: videoEntry(video), stts: [[vCount, 1000]], stss: keys, ctts, edit, sizes: video.samples.map(s => s.data.length), sampleCount: vCount, offset: videoOffset, width: video.width, height: video.height});
-    const aTrak = mov
-      ? track({id: 2, kind: 'audio', timescale: audio.sampleRate, duration: aFrames, movieDuration: Math.round(aFrames / audio.sampleRate * 1000),
-        entry: pcmEntry(audio), stts: [[aFrames, 1]], sampleSize: 2 * audio.channels, sampleCount: aFrames, offset: audioOffset})
-      : track({id: 2, kind: 'audio', timescale: audio.sampleRate, duration: aFrames, movieDuration: Math.round(aFrames / audio.sampleRate * 1000),
-        entry: aacEntry(audio), stts: [[audio.samples.length, 1024]], sizes: audio.samples.map(s => s.length), sampleCount: audio.samples.length, offset: audioOffset});
-    const mvhd = full('mvhd', 0, 0, u32(0), u32(0), u32(1000), u32(movieMs), u32(0x00010000), u16(0x0100), zeros(10), matrix(), zeros(24), u32(3));
-    const moov = box('moov', mvhd, vTrak, aTrak);
-    const parts = [ftyp, mdatHeader, ...video.samples.map(s => s.data), ...(mov ? [audio.pcm] : audio.samples), moov];
+    const buildMoov = (videoOffset, audioOffset, co64) => {
+      const vTrak = track({id: 1, kind: 'video', timescale: vScale, duration: vDuration, movieDuration: Math.round(vCount / video.fps * 1000),
+        entry: videoEntry(video), stts: [[vCount, 1000]], stss: keys.length ? keys : null, ctts, edit, sizes: video.samples.map(s => s.data.length), sampleCount: vCount, offset: videoOffset, co64, width: video.width, height: video.height});
+      const aTrak = mov
+        ? track({id: 2, kind: 'audio', timescale: audio.sampleRate, duration: rawAudioFrames, movieDuration: Math.round(rawAudioFrames / audio.sampleRate * 1000),
+          entry: pcmEntry(audio), stts: [[rawAudioFrames, 1]], sampleSize: 2 * audio.channels, sampleCount: rawAudioFrames, offset: audioOffset, co64})
+        : track({id: 2, kind: 'audio', timescale: audio.sampleRate, duration: rawAudioFrames, movieDuration: Math.round(audioFrames / audio.sampleRate * 1000),
+          entry: aacEntry(audio), stts: [[audio.samples.length, 1024]], edit: audioFrames < rawAudioFrames ? aacPriming : null,
+          sizes: audio.samples.map(s => s.length), sampleCount: audio.samples.length, offset: audioOffset, co64});
+      const mvhd = full('mvhd', 0, 0, u32(0), u32(0), u32(1000), u32(movieMs), u32(0x00010000), u16(0x0100), zeros(10), matrix(), zeros(24), u32(3));
+      return box('moov', mvhd, vTrak, aTrak);
+    };
+    // moov first (fast start) so Safari/iOS and social uploaders can play while downloading.
+    let co64 = false, moov = buildMoov(0, 0, false);
+    let videoOffset = ftyp.length + moov.length + mdat.length, audioOffset = videoOffset + videoBytes;
+    if (audioOffset > 0xffffffff) {
+      co64 = true; moov = buildMoov(0, 0, true);
+      videoOffset = ftyp.length + moov.length + mdat.length; audioOffset = videoOffset + videoBytes;
+    }
+    moov = buildMoov(videoOffset, audioOffset, co64);
+    const parts = [ftyp, moov, mdat, ...video.samples.map(s => s.data), ...(mov ? [audio.pcm] : audio.samples)];
     return new Blob(parts, {type: mov ? 'video/quicktime' : 'video/mp4'});
   }
 
-  global.FretlarkVideoMux = {mux, _box: box, _concat: concat};
+  global.FretlarkVideoMux = {mux, _box: box, _concat: concat, _u64: u64, _mdatHeader: mdatHeader, _chunkOffset: chunkOffset};
   if (typeof module !== 'undefined') module.exports = global.FretlarkVideoMux;
 })(typeof window !== 'undefined' ? window : globalThis);

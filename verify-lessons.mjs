@@ -528,3 +528,33 @@ assert.equal(objects.has(keepFile),true,'Another account keeps its files');
 assert.equal((await call('session',{headers:keepHeaders})).data.authenticated,true);
 assert.equal((await call(`admin/lessons/${keepSong.id}`,{headers:keepHeaders})).status,200);
 console.log('PASS: self-service account deletion, reauthentication, confirmation, owner protection and isolation.');
+// A classroom shares one IP; account failures follow immutable IDs across aliases.
+sql.prepare('DELETE FROM auth_limits').run();
+const wifiHeaders={'cf-connecting-ip':'198.51.100.77'},wifiPassword='classroom login password';
+const wifiUsers=[];
+for(let i=0;i<30;i++){
+ const username='wifi_class_'+i;
+ const registered=await call('auth/register',{method:'POST',headers:wifiHeaders,body:{username,email:username+'@example.test',password:wifiPassword}});
+ assert.equal(registered.status,200,'Thirty accounts may register behind one IP');
+ wifiUsers.push(username);
+}
+const classroomLogins=await Promise.all(wifiUsers.map(username=>call('auth/login',{method:'POST',headers:wifiHeaders,body:{username,email:username+'@example.test',password:wifiPassword}})));
+assert.equal(classroomLogins.filter(result=>result.status===200&&result.cookie).length,30,'Thirty concurrent classroom logins succeed');
+for(let i=0;i<12;i++)assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[0],password:wifiPassword}})).status,200,'Successful logins do not spend the account failure allowance');
+const wifiId=sql.prepare('SELECT id FROM teachers WHERE email=?').get(wifiUsers[0]).id;
+sql.prepare('UPDATE teachers SET contact_email=?,contact_email_verified_at=? WHERE id=?').run('wifi-alias@example.test',Date.now(),wifiId);
+for(let i=0;i<10;i++)assert.equal((await call('auth/login',{method:'POST',headers:{'cf-connecting-ip':'198.51.100.'+(i+100)},body:{username:i%2?'wifi-alias@example.test':wifiUsers[0],password:'wrong'}})).status,401);
+assert.equal((await call('auth/login',{method:'POST',headers:{'cf-connecting-ip':'203.0.113.88'},body:{username:'wifi-alias@example.test',password:wifiPassword}})).status,429,'Account cap follows email aliases and rotating IPs');
+assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[1],password:wifiPassword}})).status,200,'One locked account never locks classmates');
+sql.prepare('DELETE FROM auth_limits').run();
+const parallelGuesses=await Promise.all(Array.from({length:30},()=>call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[1],password:'wrong'}})));
+assert.equal(parallelGuesses.filter(result=>result.status===401).length,10,'Atomic reservation permits at most ten parallel guesses per account');
+assert.equal(parallelGuesses.filter(result=>result.status===429).length,20);
+sql.prepare('DELETE FROM auth_limits').run();
+for(let i=0;i<300;i++){
+ const result=await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[2],password:wifiPassword}});
+ assert.equal(result.status,200,'Shared IP allows 300 sign-in attempts');
+}
+assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[3],password:wifiPassword}})).status,429,'IP flood cap still blocks attempt 301');
+assert.equal((await call('auth/login',{method:'POST',headers:{'cf-connecting-ip':'203.0.113.99'},body:{username:wifiUsers[3],password:wifiPassword}})).status,200,'IP cap never leaks into another network');
+console.log('PASS: 30 simultaneous shared-Wi-Fi logins, success refunds, alias/IP-resistant account caps, atomic parallel guesses, and 300-attempt network cap.');
