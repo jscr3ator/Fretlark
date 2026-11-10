@@ -1166,6 +1166,8 @@
     try{
       if(isViewer){
         $('editor-mode').checked=false;$('editor-mode').disabled=true;$('tempo-input').disabled=!document.body.classList.contains('simple-player');$('lesson-badge').textContent=query.has('preview')?'Private preview':'Shared song';
+        // The owner's own audience view: say plainly that this tab is private to the account.
+        if(query.has('preview')&&!shareToken&&$('private-banner')){$('private-banner').hidden=false;const fs=$('private-fullscreen'),sync=()=>{fs.textContent=document.fullscreenElement?'Exit fullscreen':'Fullscreen';};fs.addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>toast('Fullscreen is unavailable here.',true));});document.addEventListener('fullscreenchange',sync);}
         document.querySelector('.status-help').textContent='Space: play / pause · F9: loop';document.querySelector('.dock-status').textContent='Practice mix';
         const base=shareToken?`shared/${encodeURIComponent(shareToken)}`:`admin/lessons/${encodeURIComponent(query.get('lesson')||'')}`,lesson=await(await cloudApi(base)).json();
         const settings=lesson.student_settings||{};studentSettings=settings;document.body.classList.toggle('no-track-controls',settings.show_track_controls===false);

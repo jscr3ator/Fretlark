@@ -20,7 +20,7 @@ function library(){
  const d=dom(),loads=[];
  const context=vm.createContext({$:d.element,document:d.document,window:{LocalSongs:{list(key){assert.equal(key,owner);return [local];}},FretphrasePreview:{load(...args){loads.push(args);},clear(){}},matchMedia(){return {matches:false};}},lessons:[cloud],localCloudSaves:new Set(),localOwner:owner,librarySelectedId:cloud.id,previewKey:null,filter:'all',storageCount:1,coverResults:new Map(),hasCover(){return false;},queueCover(){},coverObserver:{observe(){},disconnect(){}},coverStyle(){return '';},paintCover(){},coverHtml(){return '';},esc:s=>s,loadStorage:async()=>{},renderOverview(){}});
  vm.runInContext(source.slice(source.indexOf('  const localCoverSource'),source.indexOf('  function coverHtml')),context);
- vm.runInContext(source.slice(source.indexOf('  function render()'),source.indexOf('  function openStudentPreview')),context);
+ vm.runInContext(source.slice(source.indexOf('  function render()'),source.indexOf('  // Opens the owner-only audience player')),context);
  vm.runInContext(source.slice(source.indexOf('  function onLessonAction'),source.indexOf('  function setFilter')),context);
  return {...d,context,loads};
 }

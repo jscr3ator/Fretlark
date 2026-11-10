@@ -255,7 +255,6 @@
   function closeDialog(dialogId) {
     const dialog = $(dialogId);
     if (dialogId === 'password-dialog') $('password-form').reset();
-    if (dialogId === 'student-preview-dialog') $('student-preview-frame').removeAttribute('src');
     if (dialog.open) dialog.close();
   }
 
@@ -314,7 +313,6 @@
       });
       dialog.addEventListener('close', () => {
         if (dialog.id === 'share-dialog') shareTrackRequest++;
-        if (dialog.id === 'student-preview-dialog') $('student-preview-frame').removeAttribute('src');
         restoreDialogFocus(dialog);
       });
       dialog.addEventListener('cancel', event => {
@@ -641,15 +639,16 @@
     }
   }
 
-  function openStudentPreview() {
+  // Opens the owner-only audience player full page in a new tab. The page needs this account's
+  // session, so the link works for nobody else; it says so in a banner at the top.
+  function openAudienceView() {
     const lesson = lessons.find(item => item.id === librarySelectedId);
     if (!lesson) return;
     const url = new URL('/editor/player.html', location.origin);
     url.searchParams.set('lesson', lesson.id);
     url.searchParams.set('preview', '1');
     if (new URLSearchParams(location.search).get('silent') === '1') url.searchParams.set('silent', '1');
-    $('student-preview-frame').src = url.href;
-    openDialog('student-preview-dialog', 'close-student-preview');
+    window.open(url.href, '_blank', 'noopener');
   }
 
   async function init() {
@@ -914,7 +913,6 @@
     try {
       await api('auth/logout', {method: 'POST'});
       try { localStorage.removeItem('score-studio-session'); } catch {}
-      closeDialog('student-preview-dialog');
       closeDialog('account-dialog');
       lessons = [];
       window.FretphrasePreview.clear();
@@ -1591,8 +1589,8 @@
       $('selected-title').focus();
     }
   });
-  $('selected-preview').addEventListener('click', openStudentPreview);
-  $('mobile-preview').addEventListener('click', openStudentPreview);
+  $('selected-preview').addEventListener('click', openAudienceView);
+  $('mobile-preview').addEventListener('click', openAudienceView);
   $('upload-selection').addEventListener('click', event => {
     const remove = event.target.closest('[data-remove-upload]');
     if (!remove || uploading) return;

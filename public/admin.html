@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=a64a292e5010">
+  <link rel="stylesheet" href="/admin.css?v=eb7e6f4510e7">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -195,7 +195,7 @@
                 <button id="selected-cloud-save" class="button" type="button" hidden><svg class="icon"><use href="#i-upload"/></svg><span>Save to Library</span></button>
                 <button id="detail-share" class="button" type="button"><svg class="icon"><use href="#i-share"/></svg>Share</button>
                 <a id="selected-video" class="button" href="#" target="_blank" rel="noopener" title="Make a scrolling tab video for Instagram, TikTok or YouTube"><svg class="icon"><use href="#i-video"/></svg>Video</a>
-                <button id="mobile-preview" class="button preview-button mobile-preview" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-play"/></svg>Preview</button>
+                <button id="mobile-preview" class="button preview-button mobile-preview" type="button" title="Open the audience player in a new tab. Only you can open it."><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Open</button>
                 <button id="selected-device" class="button" type="button" title="Move this song out of your Library and keep it locally"><svg class="icon"><use href="#i-device"/></svg>Keep locally only</button>
                 <button id="selected-settings" class="icon-button bordered" type="button" aria-label="Song settings" title="Song settings"><svg class="icon"><use href="#i-sliders"/></svg></button>
                 <button id="selected-delete" class="icon-button bordered danger-icon" type="button" aria-label="Delete song" title="Delete song"><svg class="icon"><use href="#i-trash"/></svg></button>
@@ -206,7 +206,7 @@
             <div class="preview-toolbar">
               <h2 id="preview-scope">Preview</h2>
               <div class="preview-controls"><label class="track-picker"><span class="sr-only">Preview track</span><select id="preview-track" disabled><option>Loading track…</option></select></label><span id="preview-tempo" class="preview-tempo"></span></div>
-              <button id="selected-preview" class="button preview-button" type="button" aria-haspopup="dialog"><svg class="icon"><use href="#i-play"/></svg>Audience View</button>
+              <button id="selected-preview" class="button preview-button" type="button" title="Open the audience player in a new tab. Only you can open it."><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Open</button>
             </div>
             <div id="preview-paper" class="preview-paper">
               <p id="preview-status" class="preview-status" role="status" aria-live="polite">Loading preview…</p><button id="preview-retry" class="button" type="button" hidden>Retry preview</button><div id="score-preview" aria-label="Song notation"></div>
@@ -394,10 +394,6 @@
     </div>
   </dialog>
 
-  <dialog id="student-preview-dialog" class="student-preview-dialog" aria-labelledby="student-preview-title">
-    <div class="dialog-head"><div><h2 id="student-preview-title">Audience View</h2><p>Exactly what your audience sees. Only you can open this preview.</p></div><button id="close-student-preview" class="icon-button" type="button" data-close="student-preview-dialog" aria-label="Close player preview"><svg class="icon"><use href="#i-close"/></svg></button></div>
-    <iframe id="student-preview-frame" title="Private player preview" allow="fullscreen"></iframe>
-  </dialog>
 
   <dialog id="upload-dialog" aria-labelledby="upload-title">
     <form id="upload-form">
@@ -517,6 +513,6 @@
   <script src="/account-settings.js?v=14c2b1e635d4"></script>
   <script src="/admin-reports.js?v=e3c56df06fc2"></script>
   <script src="/admin-setlists.js?v=77d38784eabc"></script>
-  <script src="/admin.js?v=f07389df4393"></script>
+  <script src="/admin.js?v=bfde2681d090"></script>
 </body>
 </html>
