@@ -6,9 +6,11 @@
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
   <title>Fretlark</title>
   <meta name="description" content="Edit scores, share songs, and practise music in Fretlark.">
-  <link rel="stylesheet" href="./styles.css?v=ec66770fd0fa">
+  <link rel="stylesheet" href="./styles.css?v=d28008416572">
   <link rel="stylesheet" href="./command-palette.css?v=3d5609c81210">
   <link rel="stylesheet" href="./drum-pad.css?v=57e57a0359fb">
+  <!-- BACKING-TRACK: backing track panel styles -->
+  <link rel="stylesheet" href="./backing-track.css?v=4523b1578243">
 </head>
 <body>
 <script>if(new URLSearchParams(location.search).has("share"))document.body.classList.add("viewer","hide-palette","hide-inspector");</script>
@@ -88,6 +90,11 @@
         <button class="wide-tool" type="button" id="btn-remove-bar"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg><span>Remove measure</span></button>
         <button class="wide-tool" type="button" id="btn-copy-bar"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="1.5"/><path d="M16 8V3H3v13h5"/></svg><span>Copy measure</span></button>
         <button class="wide-tool" type="button" id="btn-paste-bar"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H5v16h14V5h-4M9 3h6v4H9z"/></svg><span>Paste measure</span></button>
+        <!-- section clipboard: whole-arrangement copy, cut and paste -->
+        <label class="check-control clipboard-scope" id="clipboard-scope" title="Copy, cut and paste this track, or every track at once"><input id="clipboard-all-tracks" type="checkbox"><span>Selection: all tracks</span></label>
+        <button class="wide-tool" type="button" id="btn-cut-bars" title="Cut the selected bars to the clipboard"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 8l11 11M8 16L19 5"/></svg><span>Cut bars</span></button>
+        <button class="wide-tool" type="button" id="btn-paste-insert" title="Insert the copied section, shifting later bars"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H5v16h14V5h-4M9 3h6v4H9z"/><path d="M12 11v6M9 14h6"/></svg><span>Paste (insert)</span></button>
+        <button class="wide-tool" type="button" id="btn-paste-overwrite" title="Overwrite bars from the copied section"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H5v16h14V5h-4M9 3h6v4H9z"/><path d="M9 14h7"/></svg><span>Paste (overwrite)</span></button>
         <div class="section-label action-subheading">Beat &amp; track</div>
         <button class="wide-tool" type="button" id="btn-insert-beat" title="Split selected beat and add a rest"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Split beat</span></button>
         <button class="wide-tool" type="button" id="btn-delete-beat" title="Clear selected beat to a rest; timing stays the same"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg><span>Clear beat</span></button>
@@ -242,7 +249,8 @@
         <div><span>Heavy accent · Tremolo picking</span><kbd>: · "</kbd></div>
         <div><span>Fade in / out · Left-hand tap · Tap · Slap</span><kbd>&lt; · &gt; · ( · ) · $</kbd></div>
         <div><span>Delete selected note</span><kbd>Delete / Backspace</kbd></div>
-        <div><span>Copy / paste measure</span><kbd>Ctrl / ⌘ + C / V</kbd></div>
+        <div><span>Copy / paste / cut measures (this track or all tracks)</span><kbd>Ctrl / ⌘ + C / V / X</kbd></div>
+        <div><span>Paste section as new bars / overwrite bars</span><kbd>Paste (insert) / Paste (overwrite)</kbd></div>
         <div><span>Undo</span><kbd>Ctrl / ⌘ + Z</kbd></div>
         <div><span>Redo</span><kbd>Ctrl / ⌘ + Shift+Z or Ctrl / ⌘ + Y</kbd></div>
         <div><span>Open file</span><kbd>Ctrl / ⌘ + O</kbd></div>
@@ -266,8 +274,11 @@
   <script src="./ascii-tab.js?v=bb410da7acbf"></script>
   <script src="./command-palette.js?v=8f20cab26120"></script>
   <script src="./theory.js?v=ecc5b4d0cb73"></script>
-  <script src="./model.js?v=601031319cc9"></script>
+  <script src="./model.js?v=dbee899b73fd"></script>
+  <script src="./section-clipboard.js?v=b0d48eed86ad"></script>
   <script src="/dialogs.js?v=f7f8ef5eea37"></script>
-  <script src="./app.js?v=5f3f420a1a22"></script>
+  <script src="./app.js?v=46b4fbb4f150"></script>
+  <!-- BACKING-TRACK: backing track panel (loads after app.js for window.studio) -->
+  <script src="./backing-track.js?v=cf581479f7d2"></script>
 </body>
 </html>

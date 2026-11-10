@@ -1,0 +1,16 @@
+/* Backing track panel (public/editor/backing-track.js). Uses the editor theme variables. */
+.bt-panel{display:flex;flex-direction:column;gap:8px;padding-bottom:4px}
+.bt-status{font-size:11px;color:var(--text-3);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.bt-file-row strong{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.bt-wave{width:100%;height:96px;border-radius:8px;background:rgba(127,127,127,.06);border:1px solid var(--line);cursor:ew-resize;touch-action:none}
+.bt-wave.is-empty{cursor:default}
+.bt-panel.bt-drop .bt-wave{border-color:var(--accent)}
+.bt-hint{font-size:11px;color:var(--text-3);line-height:1.4}
+.bt-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bt-btn{flex:1;justify-content:center}
+.bt-offset{width:90px;flex:none}
+.bt-markers{display:flex;flex-direction:column;gap:4px;max-height:132px;overflow:auto}
+.bt-marker{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;padding:4px 8px;border-radius:6px;background:var(--control)}
+.bt-empty{font-size:11.5px;color:var(--text-3)}
+.bt-remove-marker{height:22px;padding:0 8px}
+.bt-check{margin:0}

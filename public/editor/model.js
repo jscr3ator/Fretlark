@@ -597,5 +597,8 @@
     }
     return endBar-startBar+1;
   }
-  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings};
+  // section clipboard lives in section-clipboard.js; load it lazily for direct model users.
+  const sectionApi=()=>{if(typeof globalThis!=='undefined'&&globalThis.SectionClipboard)return globalThis.SectionClipboard;if(typeof module==='object'&&module.exports)return require('./section-clipboard.js');throw Error('Section clipboard is unavailable.');};
+  const section=(name)=>(...args)=>sectionApi()[name](...args);
+  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
 });

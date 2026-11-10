@@ -447,6 +447,8 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     countInVolume: Math.max(0, Number(api.countInVolume) || 0),
     metronomeChannel: null,
     score: null,
+    // BACKING-TRACK: parsed MIDI for tick-to-second mapping (backing-track.js).
+    songMidi: null,
     seekSeconds: 0,
     seekTick: 0,
     lastSeconds: 0,
@@ -486,6 +488,20 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     }
   }
 
+  // BACKING-TRACK: the backing-track panel mirrors playback through these listeners.
+  const positionListeners = new Set();
+  function emitBackingPosition() {
+    if (!positionListeners.size || state.destroyed) return;
+    const event = {
+      songSeconds: Math.max(0, Number(state.lastSeconds) || 0),
+      playing: state.playing && !state.countingIn,
+      countingIn: state.countingIn,
+      speed: state.speed,
+      songEnd: state.songEnd || 0
+    };
+    for (const listener of positionListeners) { try { listener(event); } catch {} }
+  }
+
   function updatePosition() {
     if (!state.playing || state.destroyed) return;
     try {
@@ -493,6 +509,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       state.lastSeconds = songSeconds;
       api.player.output.updatePosition(songSecondsToAlphaTabMs(songSeconds, state.speed));
     } catch {}
+    emitBackingPosition();
   }
 
   // The interval also covers throttled frame clocks (power saving, background iframes), so loops
@@ -537,6 +554,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       // step so a later play() resumes at the requested position rather than the old pause point.
       if (sequencer.paused) sequencer.pausedTime = target;
     } catch {}
+    emitBackingPosition();
   }
 
   function cancelCountIn() {
@@ -596,6 +614,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       } catch {}
       state.countInTarget = target;
       state.countInTimer = setTimeout(() => finishCountIn(state.countInTarget), Math.max(1, plan.realDurationMs + 30));
+      emitBackingPosition();
       return;
     }
     finishCountIn(target);
@@ -648,6 +667,10 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     const buffer = binary.byteOffset === 0 && binary.byteLength === binary.buffer.byteLength
       ? binary.buffer
       : binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+    // BACKING-TRACK: keep the parsed MIDI so the backing-track panel can map ticks to seconds.
+    // Parsed lazily (ticksToSeconds), so songs without a backing track pay nothing on each edit.
+    state.songMidi = null;
+    state.songMidiBuffer = buffer.slice(0);
     return { buffer, metronomeChannel, tickShift: shift, plan };
   }
 
@@ -882,6 +905,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       state.wantPlay = true;
       state.wantedStart = state.seekSeconds ?? state.lastSeconds ?? 0;
       startWantedIfReady();
+      emitBackingPosition();
     },
     pause() {
       if (state.destroyed) return;
@@ -893,6 +917,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       if (Number.isFinite(tick)) state.seekTick = tick;
       if (state.songReady) state.seekSeconds = Math.max(0, Number(sequencer.currentHighResolutionTime) || state.seekSeconds);
       try { if (!sequencer.paused) sequencer.pause(); } catch {}
+      emitBackingPosition();
     }
   };
 
@@ -939,6 +964,21 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     },
     setPlaybackSpeed(value) {
       handler.playbackRate = value;
+    },
+    // BACKING-TRACK: backing-track.js mirrors score playback onto an audio file.
+    addPositionListener(listener) {
+      if (typeof listener === 'function') { positionListeners.add(listener); emitBackingPosition(); }
+      return () => positionListeners.delete(listener);
+    },
+    removePositionListener(listener) {
+      positionListeners.delete(listener);
+    },
+    ticksToSeconds(tick) {
+      try {
+        if (!state.songMidi && state.songMidiBuffer && BasicMIDI) state.songMidi = BasicMIDI.fromArrayBuffer(state.songMidiBuffer, 'fretlark-map.mid');
+        const seconds = state.songMidi?.midiTicksToSeconds(Math.max(0, Math.round(Number(tick) || 0)));
+        return Number.isFinite(seconds) ? seconds : null;
+      } catch { return null; }
     },
     setTrackMute(track, mute) {
       mix.setTrackMute(track, mute);

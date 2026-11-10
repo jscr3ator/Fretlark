@@ -206,6 +206,8 @@ body.hide-mixer .track-dock,body.focus-score .track-dock{display:none}
 .wide-tool:hover{background:var(--control)}
 .wide-tool .icon{width:16px;height:16px;color:var(--text-2)}
 .wide-tool kbd{margin-left:auto}
+/* Section clipboard scope toggle */
+.clipboard-scope{margin:2px 2px 4px;padding:2px 4px;font-size:12px}
 .danger-tool,.danger-tool .icon{color:var(--danger)}
 .palette-foot{display:none}
 

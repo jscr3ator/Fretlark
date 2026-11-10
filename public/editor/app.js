@@ -69,7 +69,9 @@
     api.uiFacade.initialRender();
   }
   // Exposed for reproducible manual checks and local integrations.
-  window.studio = {api, get score(){return score;}, get selected(){return {...selected};}, importBytes, exportGp, mutate};
+  window.studio = {api, get score(){return score;}, get selected(){return {...selected};}, importBytes, exportGp, mutate,
+    // BACKING-TRACK: song identity for the backing-track store (backing-track.js).
+    get localId(){return localId;}, get remoteLesson(){return remoteLesson;}, get documentIndex(){return documentIndex;}};
   function toast(message, error = false) {
     const t = $('toast'); if (!t) return;
     t.textContent = message; t.classList.toggle('error', error); t.classList.add('visible');
@@ -208,6 +210,8 @@
   }
   function renderScore(renderHints, renderOptions = {}) {
     if (!score) return;
+    // BACKING-TRACK: JSON snapshots drop the raw audio bytes; reattach them here.
+    try{window.FretlarkBackingTrack?.attachTo(score);}catch{}
     if(!renderOptions.preserveViewport)cancelEditRefresh();
     if(!isViewer||document.body.classList.contains('simple-player')){
       // Editable scores need a selectable bound for every written bar.
@@ -215,6 +219,8 @@
     }
     normalizeSelection();configureViewport();api.settings.display.staveProfile=at.StaveProfile.Default;applyNotation(); api.renderScore(score, [...displayed].sort((a,b)=>a-b),renderHints);
     syncInspector(); if(!renderOptions.lightweight){renderMixer(); renderTimeline();}else markActiveMixerTrack(); drawFretboard();
+    // BACKING-TRACK: follow score switches and alignment edits (backing-track.js).
+    try{window.FretlarkBackingTrack?.onScoreChanged(score);}catch{}
   }
   function syncInspector() {
     if (!score) return;
@@ -391,6 +397,8 @@
   async function demo() {try{const r=await fetch('/editor/demo.gp');if(!r.ok)throw Error('Demo could not be loaded');await importBytes(new Uint8Array(await r.arrayBuffer()),'Lantern Road.gp');}catch(e){toast(e.message,true);busy(false);}}
   function download(data,name,type){const url=URL.createObjectURL(new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
   function exportGpBytes(source=score) {
+    // BACKING-TRACK: reattach imported audio bytes dropped by JSON snapshots before export.
+    try{window.FretlarkBackingTrack?.attachTo(source);}catch{}
     const bytes=new at.exporter.Gp7Exporter().export(source,api.settings);
     try {
       const reopened=at.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(bytes),api.settings);
@@ -702,6 +710,11 @@
     add('Playback','Metronome',press('btn-metronome'),{enabled:()=>!!score});add('Playback','Count-in',press('btn-count-in'),{enabled:()=>!!score});
     add('Edit','Undo',()=>history(true),{shortcut:'Ctrl+Z'});add('Edit','Redo',()=>history(false),{shortcut:'Ctrl+Y'});
     add('Edit','Copy measures',press('btn-copy-bar'),{shortcut:'Ctrl+C'});add('Edit','Paste measures',press('btn-paste-bar'),{shortcut:'Ctrl+V'});add('Edit','Paste several times',()=>pasteRepeated(),{shortcut:'Ctrl+Shift+V'});
+    // section clipboard: whole-arrangement copy, cut, insert and overwrite
+    add('Edit','Cut bars',press('btn-cut-bars'),{shortcut:'Ctrl+X',keywords:['section','clipboard','all tracks']});
+    add('Edit','Paste bars (insert)',press('btn-paste-insert'),{keywords:['section','clipboard','insert','all tracks']});
+    add('Edit','Paste bars (overwrite)',press('btn-paste-overwrite'),{keywords:['section','clipboard','overwrite','all tracks']});
+    add('Edit','Selection scope: this track / all tracks',()=>{const box=$('clipboard-all-tracks');if(box){box.checked=!box.checked;syncClipboardScope();toast(box.checked?'Clipboard selection: all tracks':'Clipboard selection: this track');}},{keywords:['copy','cut','paste','scope','selection']});
     add('Edit','Select all measures',()=>{barRange={anchor:0,end:score.masterBars.length-1};showRange();},{shortcut:'Ctrl+A'});
     add('Edit','Transpose up a semitone',()=>transposeRange(1),{shortcut:'Alt+Shift+Up',keywords:['pitch']});add('Edit','Transpose down a semitone',()=>transposeRange(-1),{shortcut:'Alt+Shift+Down',keywords:['pitch']});
     add('Edit','Transpose by…',v=>transposeRange(v),{input:askNumber('Semitones, e.g. -2 or 5',-12,12),keywords:['key change']});
@@ -816,9 +829,22 @@
   $('alphatab')?.addEventListener('pointerdown',e=>{if(e.button!==0||isViewer)return;const bar=barAtPointer(e);if(bar===null)return;if(e.shiftKey){e.preventDefault();e.stopImmediatePropagation();extendRange(bar);return;}dragAnchor={bar,x:e.clientX,y:e.clientY,moved:false};},true);
   window.addEventListener('pointermove',e=>{if(!dragAnchor||!(e.buttons&1))return;if(!dragAnchor.moved&&Math.hypot(e.clientX-dragAnchor.x,e.clientY-dragAnchor.y)<6)return;dragAnchor.moved=true;const bar=barAtPointer(e);if(bar===null)return;if(!barRange||barRange.anchor!==dragAnchor.bar||barRange.end!==bar){barRange={anchor:dragAnchor.bar,end:bar};showRange();}});
   window.addEventListener('pointerup',()=>{if(dragAnchor&&!dragAnchor.moved&&barRange&&!document.querySelector('.range-mark:hover'))clearRange();dragAnchor=null;});
-  listen('btn-copy-bar','click',()=>{if(!score)return;const [a,b]=rangeBounds();clipboard=M.copyBars(score,activeTrack,selected.staff,a,b);toast(a===b?`Copied bar ${a+1} of ${selectedTrack().name}`:`Copied bars ${a+1}–${b+1} of ${selectedTrack().name}`);});
-  listen('btn-paste-bar','click',()=>{if(!clipboard){toast('Copy a bar first.');return;}const count=clipboard.endBar-clipboard.startBar+1;mutate(s=>M.pasteBars(s,clipboard,{track:activeTrack,staff:selected.staff,bar:selected.bar}),count>1?`${count} bars pasted`:'Bar pasted',true,undefined,{lightweight:count===1&&selected.bar<score.masterBars.length});});
-  async function pasteRepeated(){if(!clipboard){toast('Copy a bar first.');return;}const at={track:activeTrack,staff:selected.staff,bar:selected.bar},doc=score,answer=await window.appPrompt('Paste how many times?','2',{ok:'Paste'});if(answer===null||score!==doc)return;const times=Number(answer);if(!Number.isInteger(times)||times<1||times>64){toast('Enter a number from 1 to 64.',true);return;}const size=clipboard.endBar-clipboard.startBar+1;mutate(s=>{for(let i=0;i<times;i++)M.pasteBars(s,clipboard,{track:at.track,staff:at.staff,bar:at.bar+i*size});},`Pasted ${times}×`);}
+  // section clipboard: "Selection" toggles between the active track and the whole arrangement.
+  function clipboardAllTracks(){return !!$('clipboard-all-tracks')?.checked;}
+  function syncClipboardScope(){const row=$('clipboard-scope'),label=row?.querySelector('span');if(label)label.textContent=clipboardAllTracks()?'Selection: all tracks':'Selection: this track';}
+  listen('clipboard-all-tracks','change',syncClipboardScope);syncClipboardScope();
+  listen('btn-copy-bar','click',()=>{if(!score)return;const [a,b]=rangeBounds();if(clipboardAllTracks()&&M.copySection){clipboard=M.copySection(score,a,b);toast(a===b?`Copied bar ${a+1} from every track`:`Copied bars ${a+1}–${b+1} from every track`);}else{clipboard=M.copyBars(score,activeTrack,selected.staff,a,b);clipboard.kind='track';toast(a===b?`Copied bar ${a+1} of ${selectedTrack().name}`:`Copied bars ${a+1}–${b+1} of ${selectedTrack().name}`);}});
+  function pasteBarsAt(insert){if(!clipboard){toast('Copy a bar first.');return;}const count=(clipboard.size??clipboard.endBar-clipboard.startBar+1);
+    if(clipboard.kind==='section'){if(insert&&!M.pasteSection)return;mutate(s=>M.pasteSection(s,clipboard,selected.bar,{insert}),`${count} bar${count===1?'':'s'} pasted${insert?' (inserted)':''}`,true,undefined,{lightweight:false});return;}
+    if(insert){toast('Switch Selection to all tracks and copy a section first.',true);return;}
+    mutate(s=>M.pasteBars(s,clipboard,{track:activeTrack,staff:selected.staff,bar:selected.bar}),count>1?`${count} bars pasted`:'Bar pasted',true,undefined,{lightweight:count===1&&selected.bar<score.masterBars.length});}
+  listen('btn-paste-bar','click',()=>pasteBarsAt(false));
+  listen('btn-paste-insert','click',()=>pasteBarsAt(true));
+  listen('btn-paste-overwrite','click',()=>pasteBarsAt(false));
+  listen('btn-cut-bars','click',()=>{if(!score)return;const [a,b]=rangeBounds();let clip=null;const all=clipboardAllTracks()&&M.cutSection;
+    const entry=mutate(s=>{clip=all?M.cutSection(s,a,b):M.cutTrackBars(s,activeTrack,selected.staff,a,b);},`${a===b?'Bar':'Bars'} cut${all?' from every track':''}`);
+    if(entry&&clip){clipboard=clip;clearRange();}});
+  async function pasteRepeated(){if(!clipboard){toast('Copy a bar first.');return;}const at={track:activeTrack,staff:selected.staff,bar:selected.bar},doc=score,answer=await window.appPrompt('Paste how many times?','2',{ok:'Paste'});if(answer===null||score!==doc)return;const times=Number(answer);if(!Number.isInteger(times)||times<1||times>64){toast('Enter a number from 1 to 64.',true);return;}const size=clipboard.size??clipboard.endBar-clipboard.startBar+1;mutate(s=>{for(let i=0;i<times;i++){if(clipboard.kind==='section')M.pasteSection(s,clipboard,at.bar+i*size,{insert:false});else M.pasteBars(s,clipboard,{track:at.track,staff:at.staff,bar:at.bar+i*size});}},`Pasted ${times}×`);}
   function transposeRange(semitones){const [a,b]=rangeBounds();mutate(s=>M.transposeNotes(s,activeTrack,selected.staff,a,b,semitones),`Transposed ${semitones>0?'up':'down'} a semitone`,true,undefined,{lightweight:true});}
   listen('track-list','click',e=>{const row=e.target.closest('[data-track]');if(!row)return;const i=Number(row.dataset.track),t=score.tracks[i];
     const cell=e.target.closest('[data-measure]');if(cell){activeTrack=i;selected={track:i,staff:0,bar:Number(cell.dataset.measure),voice:0,beat:0,note:0};displayed=new Set([i]);pendingBarSeek=selected.bar;renderScore();return;}
@@ -923,6 +949,7 @@
     if(e.code==='Space'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!spaceTyping(e.target)&&!e.target.closest?.('dialog,:popover-open')){e.preventDefault();if(!e.repeat){document.querySelectorAll(':popover-open').forEach(menu=>menu.hidePopover());$('btn-play').click();}return;}
     if(typing||e.target.closest?.('dialog'))return;
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){e.preventDefault();$('btn-copy-bar').click();return;}
+    if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='x'){e.preventDefault();$('btn-cut-bars').click();return;}
     if(e.key==='Delete'&&(e.ctrlKey||e.metaKey)&&!isViewer&&check('editor-mode')){e.preventDefault();mutate(s=>M.removeBar(s,selected.bar),'Bar deleted');return;}
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='v'){e.preventDefault();pasteRepeated();return;}
     if(!isViewer&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='v'){e.preventDefault();$('btn-paste-bar').click();return;}
@@ -1067,11 +1094,15 @@
       adapter.setCountInVolume(audioMuted?0:api.countInVolume);
       adapter.setPlaybackSpeed(api.playbackSpeed);
       adapter.syncFromScore(score);
+      // BACKING-TRACK: hand the synth adapter to the backing-track panel (backing-track.js).
+      try{window.FretlarkBackingTrack?.attachHifi(adapter);}catch{}
       syncPlaybackMix();
       updatePlayReady();
     }catch(e){
       console.warn('Fretlark hi-fi audio unavailable; using alphaSynth.',e);
       hifi=null;api.hifi=null;hifiPending=false;
+      // BACKING-TRACK: no synth adapter, so the backing-track panel stays silent.
+      try{window.FretlarkBackingTrack?.attachHifi(null);}catch{}
       try{api.settings.player.playerMode=at.PlayerMode.EnabledSynthesizer;api.updateSettings();setTimeout(()=>api.loadMidiForScore(),100);}catch{}
       updatePlayReady();
       toast('Hi-fi audio is unavailable in this browser. Using the standard player.',true);
