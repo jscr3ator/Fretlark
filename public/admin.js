@@ -621,7 +621,7 @@
     $('selected-artist').hidden = local && !lesson.artist;
     $('selected-state').textContent = local ? 'Local' : lesson.shared ? 'Link shared' : 'Private';
     document.querySelector('.song-sharing').classList.toggle('is-shared', Boolean(lesson.shared));
-    for (const id of ['detail-share', 'selected-device', 'selected-settings', 'selected-preview', 'mobile-preview']) $(id).hidden = local;
+    for (const id of ['detail-share', 'selected-device', 'selected-settings', 'selected-preview']) $(id).hidden = local;
     $('selected-video').hidden = local;
     if (!local) $('selected-video').href = `/editor/video.html?lesson=${encodeURIComponent(lesson.id)}`;
     $('selected-cloud-save').hidden = !local;
@@ -1590,7 +1590,6 @@
     }
   });
   $('selected-preview').addEventListener('click', openAudienceView);
-  $('mobile-preview').addEventListener('click', openAudienceView);
   $('upload-selection').addEventListener('click', event => {
     const remove = event.target.closest('[data-remove-upload]');
     if (!remove || uploading) return;

@@ -375,7 +375,6 @@ input[type=checkbox]:disabled{opacity:.45;cursor:default}
 .song-sharing.is-shared .icon-shared{display:block}
 .song-sharing.is-shared .icon-shared{color:var(--green)}
 .song-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-.mobile-preview{display:none}
 .danger-icon:hover{background:var(--danger-soft);color:var(--danger)}
 
 /* Preview card */
@@ -639,8 +638,6 @@ dialog::backdrop{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(8px);ba
   .song-heading{justify-items:center}
   .song-sharing{justify-self:center}
   .song-actions{justify-content:center}
-  .mobile-preview{display:inline-flex}
-  .preview-toolbar .preview-button{display:none}
   .preview-paper{padding:12px}
   dialog{width:100vw;max-width:100vw;max-height:92dvh;margin:auto 0 0;border-radius:20px 20px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
   dialog[open]{animation:sheet-up .45s var(--ease) both}
