@@ -22,7 +22,75 @@
     }
     return at.model.JsonConverter.jsonToScore(json, settings);
   }
-  function consolidate(score) {
+  function fingerprint(score) {
+    // Fast change detector for mutate()'s no-op check (see app.js). It must differ when the
+    // score differs; any field missed here only falls back to a full snapshot comparison,
+    // so misses cost time but never correctness.
+    let hash = 2166136261;
+    const mix = n => { hash ^= (n | 0); hash = Math.imul(hash, 16777619); };
+    const mixStr = s => { s = String(s ?? ''); mix(s.length); for (let i = 0; i < s.length; i++) mix(s.charCodeAt(i)); };
+    mix(score.masterBars.length); mix(score.tracks.length);
+    for (const mb of score.masterBars) {
+      mix(mb.timeSignatureNumerator * 64 + mb.timeSignatureDenominator);
+      mix(mb.keySignature || 0); mix(mb.tripletFeel || 0);
+      mix(mb.repeatCount || 0); mix(mb.alternateEndings || 0);
+      mix(mb.isRepeatStart ? 1 : 0); mix(mb.isDoubleBar ? 2 : 0); mix(mb.isFreeTime ? 4 : 0);
+      mixStr(mb.section?.text); mix(mb.directions?.size || 0); mix(mb.fermata?.size || 0);
+      if (mb.tempoAutomations) for (const t of mb.tempoAutomations) { mix((t.value * 4) | 0); mix((t.ratioPosition * 997) | 0); }
+      if (mb.syncPoints) for (const s of mb.syncPoints) { mix(s.type || 0); mix((s.ratioPosition * 997) | 0); }
+    }
+    for (const track of score.tracks) {
+      const info = track.playbackInfo || {};
+      mixStr(track.name); mix(info.program || 0); mix(info.primaryChannel || 0); mix(info.secondaryChannel || 0);
+      mix(info.volume || 0); mix(info.balance || 0);
+      mix(info.isMute ? 1 : 0); mix(info.isSolo ? 2 : 0);
+      for (const staff of track.staves) {
+        mix(staff.isPercussion ? 1 : 0); mix(staff.capo || 0);
+        const tuning = staff.tuning || [];
+        mix(tuning.length);
+        for (const pitch of tuning) mix(pitch);
+        mix(staff.showTablature ? 1 : 0); mix(staff.showStandardNotation ? 2 : 0);
+        for (const bar of staff.bars) {
+          mix(bar.clef || 0); mix(bar.keySignature || 0); mix(bar.simileMark || 0);
+          mix(bar.voices.length);
+          for (const voice of bar.voices) {
+            mix(voice.beats.length);
+            for (const beat of voice.beats) {
+              mix(beat.duration || 0); mix(beat.dots || 0);
+              mix(beat.tupletNumerator || 0); mix(beat.tupletDenominator || 0);
+              mix(beat.graceType || 0); mix(beat.dynamics ?? 0);
+              mix(beat.isEmpty ? 1 : 0);
+              mix(beat.pickStroke || 0); mix(beat.brushType || 0); mix(beat.tremoloSpeed || 0);
+              mix((beat.tap ? 1 : 0) | (beat.slap ? 2 : 0) | (beat.pop ? 4 : 0) | (beat.slashed ? 8 : 0));
+              mix(beat.ottava || 0); mix(beat.crescendo || 0); mix(beat.fade || 0);
+              mix(beat.whammyBarType || 0); mix(beat.whammyBarPoints?.length || 0);
+              mix(beat.barreFret ?? -1); mix(beat.fermata ? 1 : 0);
+              mixStr(beat.text); mixStr(beat.lyrics?.join?.('\x1f'));
+              mixStr(beat.chordId);
+              if (beat.automations) for (const a of beat.automations) { mix(a.type || 0); mix((Number(a.value) * 4) || 0); }
+              mix(beat.notes.length);
+              for (const note of beat.notes) {
+                mix(note.string ?? -1); mix(note.fret ?? -1);
+                mix(note.octave ?? 0); mix(note.tone ?? 0); mix(note.percussionArticulation ?? -1);
+                mix((note.isPalmMute ? 1 : 0) | (note.isLetRing ? 2 : 0) | (note.isHammerPullOrigin ? 4 : 0)
+                  | (note.isStaccato ? 8 : 0) | (note.isDead ? 16 : 0) | (note.isGhost ? 32 : 0)
+                  | (note.isLeftHandTapped ? 64 : 0) | (note.isTieDestination ? 128 : 0));
+                mix(note.vibrato || 0); mix(note.accentuated || 0);
+                mix(note.bendType || 0);
+                if (note.bendPoints) { mix(note.bendPoints.length); for (const p of note.bendPoints) { mix(p.offset || 0); mix(p.value || 0); } }
+                mix(note.harmonicType || 0); mix(note.slideOutType || 0); mix(note.slideInType || 0);
+                mix(note.trillValue ?? -1); mix(note.trillSpeed || 0);
+                mix(note.leftHandFinger ?? -1); mix(note.rightHandFinger ?? -1);
+                mix(note.ornament ?? -1);
+              }
+            }
+          }
+        }
+      }
+    }
+    return hash | 0;
+  }
+  function consolidate(score, options = {}) {
     // Serialization reconstructs index maps and linked beat chains after structural edits.
     const added=[];
     for (const track of score.tracks) for (const staff of track.staves) {
@@ -40,6 +108,12 @@
       for (const key of ['tieDestination','slurDestination','hammerPullOrigin','hammerPullDestination','slideOrigin','slideTarget']) {
         if (note[key] && !live.has(note[key])) note[key] = null;
       }
+    }
+    if (options.lightweight) {
+      // Note-value edits leave bars, beats and timing intact: rebuild the derived lookup
+      // maps and playback positions directly instead of a full JSON round-trip.
+      score.finish(settings);
+      return score;
     }
     return at.model.JsonConverter.jsonToScore(at.model.JsonConverter.scoreToJson(score),settings);
   }
@@ -600,5 +674,5 @@
   // section clipboard lives in section-clipboard.js; load it lazily for direct model users.
   const sectionApi=()=>{if(typeof globalThis!=='undefined'&&globalThis.SectionClipboard)return globalThis.SectionClipboard;if(typeof module==='object'&&module.exports)return require('./section-clipboard.js');throw Error('Section clipboard is unavailable.');};
   const section=(name)=>(...args)=>sectionApi()[name](...args);
-  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
+  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, fingerprint, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
 });

@@ -24,6 +24,7 @@ const section = (start, end) => editor.slice(editor.indexOf(start), editor.index
   const score = M.createScore();
   const context = vm.createContext({
     M, score, isViewer: false, loading: false, selected: {track:0, staff:0, bar:0, voice:0, beat:0, note:0}, currentString: 1, activeTrack: 0, displayed: new Set([0]),
+    openedDocuments: [{}], documentIndex: 0, editVersion: 0,
     api: {tickPosition: 0, pause() {}}, clearDigitEntry() {}, syncInspector() {}, drawFretboard() {},
   });
   vm.runInContext(section('  function mutate(', '  function normalizeSelection()'), context);
@@ -59,6 +60,7 @@ const section = (start, end) => editor.slice(editor.indexOf(start), editor.index
   const score = {stylesheet: {}};
   const context = vm.createContext({
     score, isViewer: false, displayed: new Set([0]),
+    midiDirty: false, midiTimer: 0, editVersion: 0, clearTimeout() {},
     document: {body: {classList: {contains: () => false}}},
     at: {StaveProfile: {Default: 'default'}},
     normalizeSelection() {}, configureViewport() {}, applyNotation() {}, syncInspector() {}, cancelEditRefresh() {},
@@ -72,6 +74,33 @@ const section = (start, end) => editor.slice(editor.indexOf(start), editor.index
   assert.deepEqual(counts, {mixer: 0, timeline: 0, fretboard: 1, mixerSync: 1});
   vm.runInContext('renderScore()', context);
   assert.deepEqual(counts, {mixer: 1, timeline: 1, fretboard: 2, mixerSync: 1}, 'Full render keeps normal refresh behavior');
+}
+
+// Timing-neutral edits defer the MIDI rebuild; playback or export flushes it on demand.
+{
+  const calls = [];
+  const api = {score: {id: 'live'}, loadMidiForScore() { calls.push('midi'); }};
+  const hifi = {refreshNow() { calls.push('hifi'); }};
+  const context = vm.createContext({
+    api, hifi, isViewer: false, score: api.score, midiDirty: false, midiTimer: 0,
+    clearTimeout() {}, setTimeout(fn) { context.timer = fn; return 7; },
+  });
+  vm.runInContext(section('  function rebuildMidi(){', '  function syncInspector()'), context);
+  vm.runInContext('flushMidi()', context);
+  assert.deepEqual(calls, [], 'Flush with nothing pending stays quiet');
+  context.midiDirty = true;
+  vm.runInContext('flushMidi()', context);
+  assert.deepEqual(calls, ['midi', 'hifi'], 'Playback rebuilds deferred MIDI synchronously');
+  assert.equal(context.midiDirty, false);
+  assert.equal(context.midiTimer, 0);
+  context.midiDirty = true;
+  vm.runInContext('rebuildMidi()', context);
+  assert.deepEqual(calls, ['midi', 'hifi', 'midi'], 'Deferred rebuild regenerates alphaTab MIDI after paint');
+  assert.equal(context.midiDirty, false);
+  delete hifi.refreshNow; hifi.onMidiLoaded = () => calls.push('hifi-legacy');
+  context.midiDirty = true;
+  vm.runInContext('flushMidi()', context);
+  assert.deepEqual(calls.slice(-2), ['midi', 'hifi-legacy']);
 }
 
 // Every fret edit preserves viewport and MIDI tick, including two-digit coalescing.
@@ -186,7 +215,7 @@ const section = (start, end) => editor.slice(editor.indexOf(start), editor.index
   let rebuilds = 0;
   const tab = {querySelector(selector) { return selector === '#tab-file-title' ? title : unsaved; }};
   const context = vm.createContext({
-    isViewer: false, dirty: false, documentIndex: 0, saveTimer: null, draftKey: null, score: {title: 'Song'},
+    isViewer: false, dirty: false, documentIndex: 0, saveTimer: null, draftKey: null, score: {title: 'Song'}, editVersion: 0,
     document: {querySelector() { return tab; }}, txt() {}, updateHistory() {},
     clearTimeout() {}, setTimeout() { return 1; }, saveDraft() {}, renderDocumentTabs() { rebuilds++; },
   });

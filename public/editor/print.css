@@ -1,0 +1,176 @@
+/* Fretlark clean sheet-music printing.
+ *
+ * Browser header/footer removal: Chromium, Firefox and WebKitGTK only draw
+ * their own header/footer (URL, title, date, page numbers) inside the page
+ * margin. Setting the page margin to zero removes that chrome everywhere, so
+ * the content margins are applied inside the document (.print-sheet) instead.
+ * Works for any paper size (A4, US Letter, …) via size:auto.
+ */
+@page {
+  size: auto;
+  margin: 0;
+}
+
+/* Off-screen on monitors: laid out (so alphaTab can measure it) but invisible.
+ * display:none would give it zero width and break the print layout pass. */
+#print-root {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 648px;
+  visibility: hidden;
+  background: #fff;
+  color: #000;
+}
+
+#print-root .print-page,
+#print-root .print-music {
+  width: 648px;
+}
+
+@media print {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* Only the print sheet goes on paper. Everything else (player chrome,
+   * editor chrome, dialogs, toasts, the on-screen score) is hidden. */
+  body.printing > :not(#print-root) {
+    display: none !important;
+  }
+  body.printing::before,
+  body.printing::after {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block !important;
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    visibility: visible;
+  }
+
+  .print-sheet {
+    margin: 0;
+    padding: 14mm 16mm 22mm;
+    background: #fff;
+    color: #000;
+  }
+
+  /* Title block: engraved look, first page only (it is in flow at the top). */
+  .print-titleblock {
+    margin: 0 0 5mm;
+    padding: 0 0 3.5mm;
+    border-bottom: 0.45mm solid #000;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .print-title {
+    margin: 0;
+    font-family: Didot, "Bodoni MT", "Playfair Display", Georgia, "Times New Roman", serif;
+    font-size: 22pt;
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    color: #000;
+  }
+  .print-artist {
+    margin: 1.2mm 0 0;
+    font-family: Didot, "Bodoni MT", Georgia, "Times New Roman", serif;
+    font-size: 11.5pt;
+    font-style: italic;
+    line-height: 1.25;
+    color: #000;
+  }
+  .print-artist:empty {
+    display: none;
+  }
+  .print-info {
+    margin: 2mm 0 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 8pt;
+    line-height: 1.4;
+    color: #333;
+  }
+
+  /* Notation: pure black on white. No cursor, selection, hover or tint. */
+  .print-music {
+    color: #000;
+  }
+  .print-music .at-surface,
+  .print-music .at-viewport {
+    background: #fff !important;
+  }
+  .print-music .at-cursor-bar,
+  .print-music .at-selection,
+  .print-music .at-cursor-beat,
+  .print-music .bar-hover,
+  .print-music .loop-mark,
+  .print-music #selection-marker,
+  .print-music #note-selection-markers {
+    display: none !important;
+  }
+
+  /* Systems never split across pages: every rendered chunk stays whole and
+   * the browser breaks between chunks. */
+  .print-music .at-surface {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .print-music .at-surface > div {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    max-width: 100%;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #print-root .print-page,
+  #print-root .print-music {
+    width: 648px;
+  }
+
+  /* One wrapper per printed page. Pages are packed by script against the
+   * smaller common paper (US Letter), so each one fits on Letter and A4.
+   * In-flow footers keep the numbering exact in every browser (CSS page
+   * counters resolve to 0 in Chromium and cannot be relied on). */
+  #print-root .print-page:not(:last-child) {
+    break-after: page;
+    page-break-after: always;
+  }
+  #print-root .print-page {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Quiet footer at the end of every page. */
+  #print-root .print-page-footer {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-top: 4mm;
+    padding-top: 2mm;
+    border-top: 0.25mm solid #999;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 7.5pt;
+    line-height: 1.3;
+    color: #555;
+  }
+  #print-root .print-footer-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #print-root .print-brand {
+    flex: none;
+  }
+}

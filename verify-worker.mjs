@@ -79,7 +79,7 @@ const {runInNewContext}=await import('node:vm');
 const editor=readFileSync('public/editor/app.js','utf8');
 const autosave=editor.slice(editor.indexOf('  function rememberDocument()'),editor.indexOf('  function renderDocumentTabs()')) + editor.slice(editor.indexOf('  function markDirty()'),editor.indexOf('  function mutate('));
 const drafts=new Map();
-const context={isViewer:false,guest:false,documentIndex:0,openedDocuments:[{}],selected:{track:0},activeTrack:0,currentString:1,displayed:new Set([0]),undo:[],redo:[],remoteLesson:null,document:{querySelector(){return null;}},draftKey:'fretline-draft:alice@example.test',score:{title:'Private A'},M:{snapshot:JSON.stringify},sessionStorage:{setItem:(k,v)=>drafts.set(k,v)},txt(){},status(){},toast(){},updateHistory(){},renderDocumentTabs(){},clearTimeout(){},setTimeout(fn){fn();},saveTimer:null};
+const context={isViewer:false,guest:false,documentIndex:0,openedDocuments:[{}],selected:{track:0},activeTrack:0,currentString:1,displayed:new Set([0]),undo:[],redo:[],remoteLesson:null,editVersion:0,document:{querySelector(){return null;}},draftKey:'fretline-draft:alice@example.test',score:{title:'Private A'},M:{snapshot:JSON.stringify},sessionStorage:{setItem:(k,v)=>drafts.set(k,v)},txt(){},status(){},toast(){},updateHistory(){},renderDocumentTabs(){},clearTimeout(){},setTimeout(fn){fn();},saveTimer:null};
 runInNewContext(autosave+';markDirty();',context);
 context.draftKey='fretline-draft:bob@example.test';context.score={title:'Private B'};
 runInNewContext(autosave+';markDirty();',context);

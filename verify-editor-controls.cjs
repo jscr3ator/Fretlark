@@ -265,7 +265,7 @@ function trackBinding({staff, capo = '5', tuning = 'seven', transpose = '0'}) {
   const storage = new Map();
   let failure = false, warning = '';
   const context = vm.createContext({
-    draftKey:'draft', guest:false, isViewer:false, documentIndex:0, score:{title:'Edited A'}, dirty:true,
+    draftKey:'draft', guest:false, isViewer:false, documentIndex:0, score:{title:'Edited A'}, dirty:true, editVersion:0,
     selected:{track:0,staff:0,bar:0,voice:0,beat:0,note:0}, activeTrack:0, currentString:1,
     displayed:new Set([0]), undo:[], redo:[], remoteLesson:{id:'a'},
     openedDocuments:[{}, {json:'B',title:'B',dirty:true,selected:{track:0},activeTrack:0,currentString:1,displayed:[0],remoteLesson:null}],

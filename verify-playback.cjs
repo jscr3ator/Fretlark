@@ -181,6 +181,7 @@ assert.equal(element('new-track-name').value,'My bass part','Instrument changes 
 // Exercise the actual editor mutation routine with score snapshots and history.
 const historyContext={M, score:M.createScore(), selected:{track:0,staff:0,bar:0,voice:0,beat:0,note:0},
   undo:[],redo:[],isViewer:false,loading:false,activeTrack:0,displayed:new Set([0]),api:{pause(){}},clearTimeout,
+  openedDocuments:[{}],documentIndex:0,editVersion:0,
   digitTimer:null,digitBuffer:'',digitUndoEntry:null,currentString:1,normalizeSelection(){},markDirty(){this.dirtyCount=(this.dirtyCount||0)+1;},
   renderScore(){},preserveEditViewport(){},syncInspector(){},renderMixer(){},drawFretboard(){},toast(){}};
 vm.createContext(historyContext);

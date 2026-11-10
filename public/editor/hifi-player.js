@@ -1007,6 +1007,14 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       clearTimeout(state.reloadTimer);
       state.reloadTimer = setTimeout(reloadMidi, 90);
     },
+    // The editor defers the MIDI rebuild after timing-neutral edits; playback or export
+    // right after an edit flushes it synchronously so the first notes use the new MIDI.
+    refreshNow() {
+      if (state.destroyed) return;
+      clearTimeout(state.reloadTimer);
+      state.reloadTimer = 0;
+      reloadMidi();
+    },
     auditionNote(note, track) {
       if (!note || state.destroyed) return;
       const owner = track || note.beat?.voice?.bar?.staff?.track || api.score?.tracks?.[0];

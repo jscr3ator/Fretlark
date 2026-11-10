@@ -43,6 +43,12 @@
   const clamp = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
   let score, activeTrack = 0, displayed = new Set([0]), selected = {track:0, staff:0, bar:0, voice:0, beat:0, note:0};
   let undo = [], redo = [], dirty = false, loading = false, clipboard = null, saveTimer, toastTimer;
+  // editVersion counts score changes; the draft autosave records the version it snapshotted
+  // so the next edit can reuse that snapshot as its undo image instead of serialising again.
+  let editVersion = 0;
+  // Timing-neutral edits (frets, articulations) defer the MIDI rebuild until after paint;
+  // flushMidi() runs it on demand before playback or export.
+  let midiDirty = false, midiTimer = 0;
   let lastPlayedBar = -1, currentString = 1, digitBuffer = '', digitTimer, digitUndoEntry, pendingBarSeek=null, pendingEditRefresh=null, pendingEditTick=null, editRefreshVersion=0, viewportIntent=0, playbackIntent=0;
   const openedDocuments=[];let documentIndex=-1;
   // As in desktop tab editors, a newly entered or changed note sounds at once, so edits are audible even in a busy mix.
@@ -70,6 +76,9 @@
   }
   // Exposed for reproducible manual checks and local integrations.
   window.studio = {api, get score(){return score;}, get selected(){return {...selected};}, importBytes, exportGp, mutate,
+    // Print renders what the viewer currently sees: the displayed tracks only,
+    // and only where the share settings allow it (see print.js).
+    get printTracks(){return [...displayed].sort((a,b)=>a-b);}, get printAllowed(){return !isViewer || studentSettings.allow_print!==false;},
     // BACKING-TRACK: song identity for the backing-track store (backing-track.js).
     get localId(){return localId;}, get remoteLesson(){return remoteLesson;}, get documentIndex(){return documentIndex;}};
   function toast(message, error = false) {
@@ -142,6 +151,9 @@
     if(!draftKey||isViewer||!score||documentIndex<0)return;
     try {
       rememberDocument();
+      // The workspace now holds a snapshot of the current score at this version, so the
+      // next edit can reuse it as its undo image while nothing else has changed.
+      if(openedDocuments[documentIndex])openedDocuments[documentIndex]._fresh={version:editVersion};
       const documents=openedDocuments.map(({json,title,dirty,selected,activeTrack,currentString,displayed,remoteLesson,localId})=>({json,title,dirty,selected,activeTrack,currentString,displayed,remoteLesson,localId}));
       const draft=JSON.stringify({version:1,documentIndex,documents});
       if(draft.length>4*1024*1024)throw Error('Workspace exceeds local recovery storage limit.');
@@ -167,6 +179,7 @@
   function switchDocument(i){if(i===documentIndex||!openedDocuments[i])return;clearTimeout(saveTimer);saveDraft();clearDigitEntry();pendingBarSeek=null;api.stop();clearRange();rememberDocument();documentIndex=i;const doc=openedDocuments[i];remoteLesson=doc.remoteLesson||null;localId=doc.localId||null;score=M.restore(doc.json);selected={...doc.selected};activeTrack=doc.activeTrack;currentString=doc.currentString||1;displayed=new Set(doc.displayed);dirty=doc.dirty;undo=doc.undo.slice();redo=doc.redo.slice();api.playbackRange=null;api.isLooping=false;activate('btn-loop',false);set('loop-start',1);set('loop-end',score.masterBars.length);renderScore();updateHistory();renderDocumentTabs();syncDocumentBadge();saveDraft();const url=new URL(location.href);if(remoteLesson)url.searchParams.set('lesson',remoteLesson.id);else url.searchParams.delete('lesson');window.history.replaceState(null,'',url);$('score-scroll').scrollTop=0;}
   function markDirty() {
     if(isViewer)return;
+    editVersion++;
     dirty = true; txt('file-title', `${score.title || 'Untitled'}.gp •`); updateHistory();
     const tab=document.querySelector(`.file-tab[data-document="${documentIndex}"]`);
     if(tab){const title=tab.querySelector('#tab-file-title'),unsaved=tab.querySelector('.tab-unsaved');if(title)title.textContent=score.title||'Untitled';if(unsaved)unsaved.textContent='•';}
@@ -176,15 +189,29 @@
   function mutate(fn, message = 'Song updated', render = true, coalesce, renderOptions = {}) {
     if (isViewer || !score || loading) return;
     if (coalesce === undefined) clearDigitEntry();
-    const before = M.snapshot(score), selection = {...selected},selectionString=currentString, previousTrack=activeTrack, previousDisplayed=new Set(displayed);
+    // A coalesced keystroke (the second digit of a fret) reuses the pending undo entry,
+    // so it needs no fresh undo snapshot of its own.
+    const coalesced = coalesce && undo.at(-1) === coalesce ? coalesce : null;
+    const beforeFp = M.fingerprint(score);
+    // The draft autosave snapshots the score after every pause in typing; when nothing
+    // changed since, that snapshot is exactly the undo image this edit needs.
+    const doc = documentIndex >= 0 ? openedDocuments[documentIndex] : null;
+    const before = coalesced ? coalesced.json
+      : (doc && doc._fresh && doc._fresh.version === editVersion && typeof doc.json === 'string' ? doc.json : M.snapshot(score));
+    const selection = {...selected},selectionString=currentString, previousTrack=activeTrack, previousDisplayed=new Set(displayed);
     const preserveViewport=renderOptions.preserveViewport??true,preserveTick=renderOptions.preserveTick??true;
     const playbackPosition=preserveTick?api.tickPosition:undefined;
     try {
-      api.pause(); fn(score); const updated = M.consolidate(score);
-      if (M.snapshot(updated) === before) { if(JSON.stringify(selected)!==JSON.stringify(selection)){syncInspector();drawFretboard();} return null; }
+      api.pause(); fn(score);
+      // Timing-neutral edits keep the live score object (alphaTab then reuses its layout
+      // and MIDI caches); structural edits still round-trip for a fresh score object.
+      const updated = renderOptions.lightweight ? M.consolidate(score, {lightweight:true}) : M.consolidate(score);
+      // A fingerprint mismatch proves the score changed; only identical fingerprints pay
+      // for a full snapshot comparison, so no-op edits stay cheap to reject.
+      if (M.fingerprint(updated) === beforeFp && M.snapshot(updated) === before) { if(JSON.stringify(selected)!==JSON.stringify(selection)){syncInspector();drawFretboard();} return null; }
       score = updated;
-      const entry=coalesce && undo.at(-1)===coalesce ? coalesce : {json:before, selected:selection,currentString:selectionString};
-      if(entry!==coalesce){undo.push(entry); if (undo.length > 35) undo.shift();} redo = [];
+      const entry=coalesced || {json:before, selected:selection,currentString:selectionString};
+      if(entry!==coalesced){undo.push(entry); if (undo.length > 35) undo.shift();} redo = [];
       normalizeSelection(); markDirty();
       if (render) {
         if(preserveViewport)preserveEditViewport(playbackPosition);
@@ -217,10 +244,43 @@
       // Editable scores need a selectable bound for every written bar.
       score.stylesheet.perTrackMultiBarRest=new Set();score.stylesheet.multiTrackMultiBarRest=false;score.stylesheet.hideEmptyStaves=false;
     }
-    normalizeSelection();configureViewport();api.settings.display.staveProfile=at.StaveProfile.Default;applyNotation(); api.renderScore(score, [...displayed].sort((a,b)=>a-b),renderHints);
+    normalizeSelection();configureViewport();api.settings.display.staveProfile=at.StaveProfile.Default;applyNotation();
+    // A lightweight edit mutates the live score in place, so alphaTab reuses its layout and
+    // MIDI caches for the synchronous re-render. Timing-neutral edits (frets, articulations)
+    // rebuild the MIDI shortly after paint instead of blocking the keystroke, coalescing fast
+    // typing; structural edits replace the score object and regenerate MIDI synchronously.
+    const sameScore = api.score === score;
+    api.renderScore(score, [...displayed].sort((a,b)=>a-b),renderHints);
+    if(!isViewer && sameScore){
+      if(renderOptions.deferMidi){
+        midiDirty = true;
+        clearTimeout(midiTimer); midiTimer = setTimeout(rebuildMidi, 180);
+      }else{
+        // Same-object renders skip alphaTab's MIDI pass; timing edits still need it now.
+        try{api.loadMidiForScore();}catch{}
+      }
+    }else if(!sameScore){
+      midiDirty = false; clearTimeout(midiTimer); midiTimer = 0;
+    }
     syncInspector(); if(!renderOptions.lightweight){renderMixer(); renderTimeline();}else markActiveMixerTrack(); drawFretboard();
     // BACKING-TRACK: follow score switches and alignment edits (backing-track.js).
     try{window.FretlarkBackingTrack?.onScoreChanged(score);}catch{}
+  }
+  function rebuildMidi(){
+    midiTimer = 0;
+    if(!midiDirty || isViewer || !score)return;
+    midiDirty = false;
+    // Regenerating the MIDI fires midiLoaded, which restores the edit tick position and
+    // reloads the hi-fi synth in the background, exactly like a synchronous render would.
+    try{api.loadMidiForScore();}catch{}
+  }
+  // Playback or export right after an edit must use the new notes even when the deferred
+  // MIDI rebuild has not run yet.
+  function flushMidi(){
+    if(!midiDirty)return;
+    midiDirty = false; clearTimeout(midiTimer); midiTimer = 0;
+    try{api.loadMidiForScore();}catch{}
+    try{if(hifi && typeof hifi.refreshNow === 'function')hifi.refreshNow();else if(hifi)hifi.onMidiLoaded();}catch{}
   }
   function syncInspector() {
     if (!score) return;
@@ -419,6 +479,7 @@
   listen('btn-wav','click',async()=>{
     if(exportingAudio){cancelAudio=true;return;}
     if(!score||!api.isReadyForPlayback){toast('Wait for the instruments to finish loading.');return;}
+    flushMidi();
     const exportTitle=score.title||'Untitled';
     exportingAudio=true;cancelAudio=false;buttonText('btn-wav','Cancel export');api.pause();let exporter;
     try{
@@ -460,7 +521,7 @@
     const playbackPosition=api.tickPosition;api.stop();to.push({json:M.snapshot(score),selected:{...selected},currentString});const entry=from.pop();score=M.restore(entry.json);selected=entry.selected;activeTrack=selected.track;displayed.add(activeTrack);currentString=entry.currentString??currentString;
     preserveEditViewport(playbackPosition);markDirty();renderScore({reuseViewport:true},{preserveViewport:true});api.tickPosition=playbackPosition;updateHistory();
   }
-  function applyNote(data,coalesce){return mutate(s=>{if(!selectedNote()&&Object.keys(data).some(key=>!['fret','string','pitch','duration','dotted','dynamics','text','lyric','chord','move'].includes(key)))throw Error('Select a note first.');const position={...selected,note:selectedNote()?.index??-1},note=M.setNote(s,position,data); if(note){selected.note=note.index;if(note.string>0)currentString=selectedTrack().staves[selected.staff].tuning.length+1-note.string;}},'Note updated',true,coalesce,{renderHints:{reuseViewport:true},lightweight:true,preserveViewport:true,preserveTick:true});}
+  function applyNote(data,coalesce){return mutate(s=>{if(!selectedNote()&&Object.keys(data).some(key=>!['fret','string','pitch','duration','dotted','dynamics','text','lyric','chord','move'].includes(key)))throw Error('Select a note first.');const position={...selected,note:selectedNote()?.index??-1},note=M.setNote(s,position,data); if(note){selected.note=note.index;if(note.string>0)currentString=selectedTrack().staves[selected.staff].tuning.length+1-note.string;}},'Note updated',true,coalesce,{renderHints:{reuseViewport:true},lightweight:true,deferMidi:true,preserveViewport:true,preserveTick:true});}
   function enterFretDigit(digit,max=36){
     const st=selectedTrack()?.staves[selected.staff];if(!st?.isStringed||st.isPercussion){clearDigitEntry();toast('Use the MIDI pitch field for piano and percussion notes.');return;}
     const previous=digitBuffer;digitBuffer=(digitBuffer+digit).slice(-2);if(Number(digitBuffer)>max)digitBuffer=digit;
@@ -555,8 +616,8 @@
   });
   document.querySelector('.file-tabs')?.addEventListener('click',e=>{const button=e.target.closest('[data-document]');if(button)switchDocument(Number(button.dataset.document));});
   listen('btn-download','click',()=>{if(studentFile)download(studentFile.bytes,studentFile.name,'application/octet-stream');});
-  listen('btn-save','click',exportGp);listen('btn-midi','click',()=>{if(score)try{api.downloadMidi(at.midi.MidiFileFormat.MultiTrack);}catch(e){toast(e.message,true);}});listen('btn-print','click',()=>api.print());
-  listen('btn-play','click',()=>{if(!api.isReadyForPlayback){toast('Soundfont and player are still loading. Try again in a moment.');return;}if($('btn-loop')?.getAttribute('aria-pressed')==='true'){api.isLooping=true;applyLoopRange();}api.playPause();});
+  listen('btn-save','click',exportGp);listen('btn-midi','click',()=>{if(score)try{flushMidi();api.downloadMidi(at.midi.MidiFileFormat.MultiTrack);}catch(e){toast(e.message,true);}});listen('btn-print','click',()=>{if(window.FretlarkPrint&&typeof window.FretlarkPrint.print==='function')window.FretlarkPrint.print();else try{api.print();}catch(e){toast('Printing is unavailable here.',true);}});
+  listen('btn-play','click',()=>{if(!api.isReadyForPlayback){toast('Soundfont and player are still loading. Try again in a moment.');return;}flushMidi();if($('btn-loop')?.getAttribute('aria-pressed')==='true'){api.isLooping=true;applyLoopRange();}api.playPause();});
   listen('btn-play-mobile','click',()=>$('btn-play').click());listen('btn-undo-mobile','click',()=>$('btn-undo').click());listen('btn-redo-mobile','click',()=>$('btn-redo').click());
   listen('btn-more','click',()=>$('more-sheet')?.showModal());listen('btn-close-more','click',()=>$('more-sheet')?.close());
   $('more-sheet')?.addEventListener('click',e=>{const action=e.target.closest('[data-click]');if(action){$(action.dataset.click)?.click();$('more-sheet').close();}});
@@ -641,7 +702,7 @@
     const target=t.note?selectedNote():curBeat();if(!target)throw Error(t.note?'Select a note first.':'Select a beat first.');
     if(!t.note&&target.isFullBarRest&&!target.notes.length)throw Error('Add a note to this beat first.');
     const el=$(id);t.apply(target,el.type==='checkbox'?el.checked:el.value);
-  },'Technique updated',true,undefined,{lightweight:true}));
+  },'Technique updated',true,undefined,{lightweight:true,deferMidi:true}));
   function syncTechniques(){const n=selectedNote(),b=curBeat();for(const [id,t] of Object.entries(techniques)){const el=$(id),target=t.note?n:b;if(!el)continue;const v=target?t.read(target):el.type==='checkbox'?false:'';if(el.type==='checkbox')el.checked=!!v;else el.value=String(v??'');if(!target&&el.tagName==='SELECT')el.selectedIndex=0;}
     const mb=score.masterBars[selected.bar];set('triplet-feel-select',mb.tripletFeel);set('direction-target-select',[...(mb.directions||[])].map(d=>E.Direction[d]).find(d=>d?.startsWith('Target'))||'');set('direction-jump-select',[...(mb.directions||[])].map(d=>E.Direction[d]).find(d=>d?.startsWith('Jump'))||'');
     const bar=selectedTrack().staves[selected.staff].bars[selected.bar];set('clef-select',bar.clef);set('simile-select',bar.simileMark===3?2:bar.simileMark);
@@ -655,7 +716,7 @@
   // A two-bar repeat sign spans this bar and the next, as in desktop tab editors.
   listen('simile-select','change',()=>mutate(s=>{const bars=s.tracks[activeTrack].staves[selected.staff].bars,v=Number(val('simile-select',0)),bar=bars[selected.bar],next=bars[selected.bar+1];if(next&&next.simileMark===3)next.simileMark=0;if(v===2){if(!next)throw Error('Add a bar after this one for a two-bar repeat.');bar.simileMark=2;next.simileMark=3;}else bar.simileMark=v;},'Repeat sign updated'));
   // C copies the previous beat's notes onto this one, like the standard Copy Last Beat.
-  function copyLastBeat(){mutate(s=>{const b=M.beatAt(s,selected,true),prev=b?.previousBeat;if(!prev||!prev.notes.length)throw Error('The previous beat has no notes.');const st=b.voice.bar.staff;for(const n of prev.notes){if(st.isStringed&&!st.isPercussion)M.setNote(s,{...selected,note:-1},{string:st.tuning.length+1-n.string,fret:n.fret});else M.setNote(s,{...selected,note:b.notes.length},{pitch:st.isPercussion?n.percussionArticulation:n.realValue});}},'Copied the last beat',true,undefined,{lightweight:true});}
+  function copyLastBeat(){mutate(s=>{const b=M.beatAt(s,selected,true),prev=b?.previousBeat;if(!prev||!prev.notes.length)throw Error('The previous beat has no notes.');const st=b.voice.bar.staff;for(const n of prev.notes){if(st.isStringed&&!st.isPercussion)M.setNote(s,{...selected,note:-1},{string:st.tuning.length+1-n.string,fret:n.fret});else M.setNote(s,{...selected,note:b.notes.length},{pitch:st.isPercussion?n.percussionArticulation:n.realValue});}},'Copied the last beat',true,undefined,{lightweight:true,deferMidi:true});}
   listen('double-bar-input','change',()=>mutate(s=>{s.masterBars[selected.bar].isDoubleBar=check('double-bar-input');},'Bar line updated'));
   listen('free-time-input','change',()=>mutate(s=>{s.masterBars[selected.bar].isFreeTime=check('free-time-input');},'Free time updated'));
   listen('tuplet-select','change',()=>mutate(s=>M.setTuplet(s,selected,Number(val('tuplet-select',1))),'Tuplet updated',true,undefined,{lightweight:true}));
@@ -675,7 +736,7 @@
   // Drum tracks get a kit pad in place of the fretboard; a hit adds or removes that piece on the selected beat.
   let drumPad=null;
   function drawDrumPad(el){if(!window.DrumPad)return false;if(!el.querySelector('.drum-pad-root')){drumPad?.destroy();el.innerHTML='<div class="drum-pad-root"></div>';
-      drumPad=window.DrumPad.mount(el.firstElementChild,{isActive:midi=>!!curBeat()?.notes.some(n=>n.percussionArticulation===midi),onHit:midi=>mutate(s=>{const b=M.beatAt(s,selected,true);const hit=b.notes.find(n=>n.percussionArticulation===midi);if(hit)b.removeNote(hit);else M.setNote(s,{...selected,note:b.notes.length},{pitch:midi});},'Drum hit updated',true,undefined,{lightweight:true})});}
+      drumPad=window.DrumPad.mount(el.firstElementChild,{isActive:midi=>!!curBeat()?.notes.some(n=>n.percussionArticulation===midi),onHit:midi=>mutate(s=>{const b=M.beatAt(s,selected,true);const hit=b.notes.find(n=>n.percussionArticulation===midi);if(hit)b.removeNote(hit);else M.setNote(s,{...selected,note:b.notes.length},{pitch:midi});},'Drum hit updated',true,undefined,{lightweight:true,deferMidi:true})});}
     drumPad?.refresh();return true;}
   // Chord diagrams come from the chord library, voiced for the current track's tuning.
   const chordShape=d=>d.frets.slice().reverse().map(f=>f<0?'x':f>9?`(${f})`:f).join('');
@@ -683,7 +744,7 @@
   function syncChordShapes(){const el=$('chord-shape-select');if(!el)return;const shapes=chordVoicings(),b=curBeat(),chord=b?.chord,current=chord?.showDiagram?chord.strings.join():'';
     el.innerHTML='<option value="">Name only</option>'+shapes.map((d,i)=>`<option value="${i}">${chordShape(d)}</option>`).join('');el.disabled=!shapes.length;const match=shapes.findIndex(d=>d.frets.join()===current);el.value=match>=0?String(match):'';}
   listen('chord-shape-select','change',()=>mutate(()=>{const b=curBeat(),name=val('chord-input').trim();if(!b||!name)throw Error('Type a chord name first.');const staff=b.voice.bar.staff,i=val('chord-shape-select');
-    const chord=i===''?Object.assign(new at.model.Chord(),{name,showName:true,showDiagram:false}):window.ChordLibrary.toAlphaTabChord(at,name,chordVoicings()[Number(i)]);const id='chord-'+b.id+'-'+Date.now();staff.addChord(id,chord);b.chordId=id;b.isEmpty=false;},'Chord diagram updated',true,undefined,{lightweight:true}));
+    const chord=i===''?Object.assign(new at.model.Chord(),{name,showName:true,showDiagram:false}):window.ChordLibrary.toAlphaTabChord(at,name,chordVoicings()[Number(i)]);const id='chord-'+b.id+'-'+Date.now();staff.addChord(id,chord);b.chordId=id;b.isEmpty=false;},'Chord diagram updated',true,undefined,{lightweight:true,deferMidi:true}));
   listen('chord-input','input',syncChordShapes);
   // Scale overlay on the fretboard, from the theory helper.
   function applyScale(){const el=$('fretboard'),root=val('scale-root-select'),id=val('scale-type-select');const st=selectedTrack()?.staves[selected.staff];if(!el||!st)return;
@@ -787,8 +848,8 @@
   listen('btn-grace-before','click',()=>addGrace('before'));listen('btn-grace-on','click',()=>addGrace('on'));
   listen('duration-select','change',()=>mutate(()=>M.setDuration(curBeat(),Number(val('duration-select'))),'Duration updated',true,undefined,{lightweight:true}));
   listen('dotted-input','change',()=>mutate(()=>M.setDuration(curBeat(),curBeat().duration,check('dotted-input')?1:0),'Dotted duration updated',true,undefined,{lightweight:true}));
-  listen('btn-rest','click',()=>mutate(()=>{const b=curBeat();if(!b)return;b.notes=[];b.noteStringLookup.clear();b.noteValueLookup.clear();b.isEmpty=false;},'Beat changed to rest',true,undefined,{lightweight:true}));
-  listen('btn-delete-note','click',()=>mutate(()=>{const b=curBeat(),n=selectedNote();if(n)b.removeNote(n);},'Note removed',true,undefined,{lightweight:true}));
+  listen('btn-rest','click',()=>mutate(()=>{const b=curBeat();if(!b)return;b.notes=[];b.noteStringLookup.clear();b.noteValueLookup.clear();b.isEmpty=false;},'Beat changed to rest',true,undefined,{lightweight:true,deferMidi:true}));
+  listen('btn-delete-note','click',()=>mutate(()=>{const b=curBeat(),n=selectedNote();if(n)b.removeNote(n);},'Note removed',true,undefined,{lightweight:true,deferMidi:true}));
   listen('btn-insert-beat','click',()=>mutate(s=>M.insertBeat(s,selected),'Beat split; a rest was inserted after it',true,undefined,{lightweight:true}));
   listen('btn-delete-beat','click',()=>mutate(s=>M.deleteBeat(s,selected),'Beat cleared; timing preserved',true,undefined,{lightweight:true}));
   listen('voice-select','change',()=>{clearDigitEntry();cancelEditRefresh();selected.voice=Number(val('voice-select',0));selected.beat=0;selected.note=0;if(!curBeat())mutate(()=>M.beatAt(score,selected,true),'Voice created',true,undefined,{lightweight:true});else syncInspector();if(check('editor-mode'))$('alphatab').focus({preventScroll:true});});
@@ -864,7 +925,7 @@
       const targets=[];
       if(typeof barRange!=='undefined'&&barRange){const [a,b]=rangeBounds(),staff=score.tracks[activeTrack]?.staves[selected.staff];for(let i=a;i<=b;i++)for(const voice of staff?.bars[i]?.voices||[])for(const beat of voice.beats)targets.push(...beat.notes);}
       else targets.push(...(curBeat()?.notes||[n]));
-      for(const t of targets)t[key]=flag?(on?1:0):on;},'Articulation updated',true,undefined,{lightweight:true});
+      for(const t of targets)t[key]=flag?(on?1:0):on;},'Articulation updated',true,undefined,{lightweight:true,deferMidi:true});
   });
   listen('btn-shortcuts','click',()=>$('shortcuts-dialog')?.showModal());
   listen('btn-fullscreen','click',()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen().catch(()=>toast('Fullscreen is unavailable in this browser.'));});

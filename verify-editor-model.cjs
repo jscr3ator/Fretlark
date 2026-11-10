@@ -215,4 +215,23 @@ assert.equal(M.beatAt(imported,next).notes[0].fret,10);
 assert.equal(M.beatAt(imported,voice2).notes[0].fret,5);
 assert.equal(imported.tracks.length,2);
 assert.equal(imported.masterBars.length,5);
+
+// The fingerprint distinguishes note edits and stays stable across no-ops.
+score = M.createScore();
+M.setNote(score,pos,{string:1,fret:5});
+const fingerprinted = M.fingerprint(score);
+assert.equal(M.fingerprint(score), fingerprinted, 'Unchanged score keeps its fingerprint');
+M.setNote(score,pos,{string:1,fret:7});
+assert.notEqual(M.fingerprint(score), fingerprinted, 'Fret change alters the fingerprint');
+M.setNote(score,pos,{string:1,fret:7});
+assert.equal(M.fingerprint(M.consolidate(score)), M.fingerprint(score), 'Consolidate preserves the fingerprint');
+
+// Timing-neutral edits reuse the live score object instead of a full round-trip.
+score = M.createScore();
+M.setNote(score,pos,{string:1,fret:5});
+score = M.consolidate(score);
+M.setNote(score,next,{string:2,fret:3});
+assert.equal(M.consolidate(score,{lightweight:true}), score, 'Lightweight consolidate keeps the score instance');
+assert.equal(M.beatAt(score,next).notes[0].fret, 3);
+assert.deepEqual(M.beatAt(reopen(score),next).notes.map(n=>n.fret), [3], 'Light edits still export and reload');
 console.log('Editor model regression checks passed');
