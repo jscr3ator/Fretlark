@@ -26,7 +26,38 @@ assert.equal(bt.validateAudioFile('take.mp3', 60 * 1024 * 1024 + 1) === null, fa
 assert.equal(bt.songKeyFor({ lessonId: 'abc' }), 'lesson:abc', 'cloud lesson wins');
 assert.equal(bt.songKeyFor({ lessonId: 'abc', localId: 'x' }), 'lesson:abc', 'lesson beats local id');
 assert.equal(bt.songKeyFor({ localId: 'x' }), 'local:x', 'device song id');
-assert.equal(bt.songKeyFor({ documentIndex: 3 }), 'draft:3', 'draft slot fallback');
+assert.equal(bt.songKeyFor({ documentIndex: 3 }), 'draft:guest:3', 'draft slot fallback is scoped to the guest');
+assert.equal(bt.songKeyFor({ documentIndex: 3, owner: 'a@example.com' }), 'draft:a@example.com:3', 'draft slots do not leak between accounts');
+assert.notEqual(bt.songKeyFor({ documentIndex: 0, owner: 'a@example.com' }), bt.songKeyFor({ documentIndex: 0, owner: 'b@example.com' }), 'two accounts never share a draft audio key');
+
+// A compressed file that claims hours of samples must not be decoded for the waveform.
+assert.equal(bt.waveformDecodeAllowed(60), true, 'short audio gets a waveform');
+assert.equal(bt.waveformDecodeAllowed(bt.MAX_WAVEFORM_SECONDS), true, 'boundary duration is allowed');
+assert.equal(bt.waveformDecodeAllowed(bt.MAX_WAVEFORM_SECONDS + 1), false, 'a decompression bomb is skipped');
+assert.equal(bt.waveformDecodeAllowed(NaN), true, 'unknown durations are left to the metadata timeout');
+
+// renderScore attaches before onScoreChanged switches the store; never carry the old song's audio.
+{
+  const at = require('./public/editor/vendor/alphaTab.js');
+  const previousWindow = global.window;
+  global.window = {alphaTab: at, studio: {remoteLesson: null, localId: 'B', localOwner: 'b@example.com', documentIndex: 0}};
+  try {
+    const controller = bt._controller;
+    controller.key = bt.songKeyFor({localId: 'A'});
+    controller.bytes = new Uint8Array([1, 2, 3]);
+    const nextScore = {};
+    bt.attachTo(nextScore);
+    assert.equal(nextScore.backingTrack, undefined, 'another song does not inherit the current audio');
+    controller.key = bt.songKeyFor({localId: 'B'});
+    bt.attachTo(nextScore);
+    assert.ok(nextScore.backingTrack?.rawAudioFile instanceof Uint8Array, 'the matching song keeps its audio bytes');
+    assert.deepEqual(Array.from(nextScore.backingTrack.rawAudioFile), [1, 2, 3]);
+  } finally {
+    global.window = previousWindow;
+    bt._controller.key = null;
+    bt._controller.bytes = null;
+  }
+}
 
 // Sync-point model on a real score.
 let score = M.createScore({ bars: 4 });

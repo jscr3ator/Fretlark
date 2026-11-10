@@ -5,6 +5,21 @@
   'use strict';
   const m = at.model;
   const settings = new at.Settings();
+  // AlphaTab's GPX decoder trusts the uncompressed length in the file. Cap it before import
+  // so a tiny crafted .gpx cannot make the browser allocate gigabytes.
+  const MAX_GPX_UNCOMPRESSED_BYTES = 128 * 1024 * 1024;
+  function gpxUncompressedSize(data) {
+    if (!data || data.length < 8) return null;
+    if (data[0] !== 0x42 || data[1] !== 0x43 || data[2] !== 0x46 || data[3] !== 0x5a) return null;
+    return ((data[7] << 24) | (data[6] << 16) | (data[5] << 8) | data[4]) >>> 0;
+  }
+  function assertSafeScoreFile(data) {
+    const size = gpxUncompressedSize(data);
+    if (size !== null && size > MAX_GPX_UNCOMPRESSED_BYTES) {
+      throw Error('This GPX file expands to more data than Fretlark can open safely.');
+    }
+    return data;
+  }
   const tunings = {
     standard: [64, 59, 55, 50, 45, 40], dropd: [64, 59, 55, 50, 45, 38],
     dadgad: [62, 57, 55, 50, 45, 38], openg: [62, 59, 55, 50, 43, 38],
@@ -674,5 +689,5 @@
   // section clipboard lives in section-clipboard.js; load it lazily for direct model users.
   const sectionApi=()=>{if(typeof globalThis!=='undefined'&&globalThis.SectionClipboard)return globalThis.SectionClipboard;if(typeof module==='object'&&module.exports)return require('./section-clipboard.js');throw Error('Section clipboard is unavailable.');};
   const section=(name)=>(...args)=>sectionApi()[name](...args);
-  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, fingerprint, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
+  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, fingerprint, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, gpxUncompressedSize, assertSafeScoreFile, MAX_GPX_UNCOMPRESSED_BYTES, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
 });

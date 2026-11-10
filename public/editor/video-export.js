@@ -657,6 +657,7 @@
     createApi();
     try {
       const settings = api.settings;
+      window.ScoreModel?.assertSafeScoreFile?.(fileBytes);
       score = /\.atex$/i.test(lesson.file_name || '') ? at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(fileBytes), settings) : at.importer.ScoreLoader.loadScoreFromBytes(fileBytes, settings);
       prepareVideoScore(score);
     } catch (error) { say(`Couldn’t open this song: ${error.message}`, true); return; }

@@ -102,6 +102,7 @@
         }
         const bytes = new Uint8Array(await response.arrayBuffer());
         if (request !== generation) return;
+        window.ScoreModel?.assertSafeScoreFile?.(bytes);
         const settings = new at.Settings();
         parsed = /\.atex$/i.test(row.file_name)
           ? at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(bytes), settings)

@@ -1017,7 +1017,9 @@
     if (/\.atex$/i.test(file.name)) {
       score = alphaTab.importer.ScoreLoader.loadAlphaTex(await file.text(), settings);
     } else {
-      score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(await file.arrayBuffer()), settings);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      window.ScoreModel?.assertSafeScoreFile?.(bytes);
+      score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, settings);
     }
     if (!score.tracks.length || !score.masterBars.length) throw new Error(`${file.name} contains no playable tabs.`);
     return {
@@ -1276,6 +1278,7 @@
       const response=await fetch(`/api/admin/lessons/${encodeURIComponent(lesson.id)}/file`,{credentials:'same-origin',cache:'no-store'});
       if(!response.ok)throw Error('Could not load tracks. Reopen sharing to try again.');
       const bytes=new Uint8Array(await response.arrayBuffer()),at=window.alphaTab;
+      window.ScoreModel?.assertSafeScoreFile?.(bytes);
       const song=/\.atex$/i.test(lesson.file_name)?at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(bytes),new at.Settings()):at.importer.ScoreLoader.loadScoreFromBytes(bytes,new at.Settings());
       if(request!==shareTrackRequest||selected?.id!==lesson.id)return;
       $('share-track-list').innerHTML=song.tracks.map((track,i)=>`<label><input type="checkbox" name="share-visible-track" value="${i}">${esc(track.name||'Track '+(i+1))}</label>`).join('');

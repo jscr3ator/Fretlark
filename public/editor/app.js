@@ -41,6 +41,9 @@
   const txt = (id, value) => { if ($(id)) $(id).textContent = value; };
   const esc = s => String(s).replace(/[&<>"']/g, x => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
   const clamp = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
+  // Share settings are enforced here as well as hidden in the UI, so a hidden button's
+  // listener cannot still download or print a song the owner turned off.
+  const viewerAllows = key => !isViewer || studentSettings[key] !== false;
   let score, activeTrack = 0, displayed = new Set([0]), selected = {track:0, staff:0, bar:0, voice:0, beat:0, note:0};
   let undo = [], redo = [], dirty = false, loading = false, clipboard = null, saveTimer, toastTimer;
   // editVersion counts score changes; the draft autosave records the version it snapshotted
@@ -78,9 +81,9 @@
   window.studio = {api, get score(){return score;}, get selected(){return {...selected};}, importBytes, exportGp, mutate,
     // Print renders what the viewer currently sees: the displayed tracks only,
     // and only where the share settings allow it (see print.js).
-    get printTracks(){return [...displayed].sort((a,b)=>a-b);}, get printAllowed(){return !isViewer || studentSettings.allow_print!==false;},
+    get printTracks(){return [...displayed].sort((a,b)=>a-b);}, get printAllowed(){return viewerAllows('allow_print');},
     // BACKING-TRACK: song identity for the backing-track store (backing-track.js).
-    get localId(){return localId;}, get remoteLesson(){return remoteLesson;}, get documentIndex(){return documentIndex;}};
+    get localId(){return localId;}, get remoteLesson(){return remoteLesson;}, get localOwner(){return localOwner;}, get documentIndex(){return documentIndex;}};
   function toast(message, error = false) {
     const t = $('toast'); if (!t) return;
     t.textContent = message; t.classList.toggle('error', error); t.classList.add('visible');
@@ -424,6 +427,9 @@
     clearDigitEntry();
     busy(true,'Opening song…');
     try {
+      // GPX files declare their decompressed size before alphaTab expands them; refuse a
+      // decompression bomb before it allocates the whole buffer.
+      M.assertSafeScoreFile?.(data);
       let imported=quietLoad(()=>at.importer.ScoreLoader.loadScoreFromBytes(data,api.settings));
       if(metadata){imported.title=metadata.title;imported.artist=metadata.artist;}
       if(isViewer&&Array.isArray(studentSettings.allowed_tracks)){
@@ -615,8 +621,8 @@
     $('alphatab').focus({preventScroll:true});
   });
   document.querySelector('.file-tabs')?.addEventListener('click',e=>{const button=e.target.closest('[data-document]');if(button)switchDocument(Number(button.dataset.document));});
-  listen('btn-download','click',()=>{if(studentFile)download(studentFile.bytes,studentFile.name,'application/octet-stream');});
-  listen('btn-save','click',exportGp);listen('btn-midi','click',()=>{if(score)try{flushMidi();api.downloadMidi(at.midi.MidiFileFormat.MultiTrack);}catch(e){toast(e.message,true);}});listen('btn-print','click',()=>{if(window.FretlarkPrint&&typeof window.FretlarkPrint.print==='function')window.FretlarkPrint.print();else try{api.print();}catch(e){toast('Printing is unavailable here.',true);}});
+  listen('btn-download','click',()=>{if(!viewerAllows('allow_download')){toast('Downloading is disabled for this shared song.',true);return;}if(studentFile)download(studentFile.bytes,studentFile.name,'application/octet-stream');});
+  listen('btn-save','click',()=>{if(!viewerAllows('allow_download')){toast('Downloading is disabled for this shared song.',true);return;}exportGp();});listen('btn-midi','click',()=>{if(score)try{flushMidi();api.downloadMidi(at.midi.MidiFileFormat.MultiTrack);}catch(e){toast(e.message,true);}});listen('btn-print','click',()=>{if(window.FretlarkPrint&&typeof window.FretlarkPrint.print==='function')window.FretlarkPrint.print();else try{api.print();}catch(e){toast('Printing is unavailable here.',true);}});
   listen('btn-play','click',()=>{if(!api.isReadyForPlayback){toast('Soundfont and player are still loading. Try again in a moment.');return;}flushMidi();if($('btn-loop')?.getAttribute('aria-pressed')==='true'){api.isLooping=true;applyLoopRange();}api.playPause();});
   listen('btn-play-mobile','click',()=>$('btn-play').click());listen('btn-undo-mobile','click',()=>$('btn-undo').click());listen('btn-redo-mobile','click',()=>$('btn-redo').click());
   listen('btn-more','click',()=>$('more-sheet')?.showModal());listen('btn-close-more','click',()=>$('more-sheet')?.close());
@@ -1246,6 +1252,8 @@
     // Only the guest's own sign-up round trip moves their browser workspace into the account.
     if(!query.has('continue'))return false;
     const url=new URL(location.href);url.searchParams.delete('continue');window.history.replaceState(null,'',url);
+    // Songs the guest saved on this device belong to the same person who just signed up.
+    try{window.LocalSongs?.move('guest',localOwner);}catch{}
     try{const raw=localStorage.getItem(GUEST_DRAFT+':workspace');if(!raw)return false;sessionStorage.setItem(draftKey+':workspace',raw);localStorage.removeItem(GUEST_DRAFT+':workspace');return true;}catch{return false;}
   }
   function unavailable(message){busy(false);status('Song unavailable');$('lesson-badge').textContent='Unavailable';const hint=$('score-empty-hint');hint.hidden=false;hint.style.display='flex';hint.innerHTML='<strong>Song unavailable</strong><span></span><button class="button" type="button" onclick="location.reload()">Try again</button>';hint.querySelector('span').textContent=message;}
@@ -1268,7 +1276,7 @@
         set('notation-select',modes.includes(settings.notation)?settings.notation:modes[0]);
         $('notation-select').disabled=modes.length===1;
         if(settings.show_track_controls===false)$('active-track-select').disabled=true;
-        for(const [selector,allowed] of [['[data-student-mixer]',settings.show_mixer],['.track-control',settings.show_track_controls],['#btn-metronome',settings.metronome],['#btn-count-in',settings.count_in],['#btn-print',settings.allow_print],['#btn-download',settings.allow_download]]) {
+        for(const [selector,allowed] of [['[data-student-mixer]',settings.show_mixer],['.track-control',settings.show_track_controls],['#btn-metronome',settings.metronome],['#btn-count-in',settings.count_in],['#btn-print',settings.allow_print],['#btn-download',settings.allow_download],['#btn-save',settings.allow_download]]) {
           if(allowed===false)document.querySelectorAll(selector).forEach(element=>element.hidden=true);
         }
         const bytes=new Uint8Array(await(await cloudApi(base+'/file')).arrayBuffer());studentFile={bytes,name:lesson.file_name||lesson.title+'.'+lesson.format};await importCloud(bytes,studentFile.name,lesson);

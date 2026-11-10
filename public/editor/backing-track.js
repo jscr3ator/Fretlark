@@ -18,6 +18,8 @@
 
   /** Largest accepted audio import; bigger files risk OOM during decode. */
   const MAX_AUDIO_BYTES = 60 * 1024 * 1024;
+  // A small compressed file can decode to hours of samples; do not draw a waveform for those.
+  const MAX_WAVEFORM_SECONDS = 60 * 60;
   const ACCEPTED_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac'];
   const DB_NAME = 'fretlark-backing-track';
   const PEAK_COLUMNS = 1400;
@@ -41,10 +43,18 @@
   }
 
   /** Storage key: cloud lesson wins, then the device song id, then the draft slot. */
-  function songKeyFor({ lessonId = null, localId = null, documentIndex = 0 } = {}) {
+  function songKeyFor({ lessonId = null, localId = null, documentIndex = 0, owner = null } = {}) {
     if (lessonId) return `lesson:${lessonId}`;
     if (localId) return `local:${localId}`;
-    return `draft:${Number.isInteger(documentIndex) ? documentIndex : 0}`;
+    // Draft slots are shared by every account on this browser, so scope them to the signed-in
+    // user. Otherwise the next account's new song inherits the previous account's audio.
+    return `draft:${owner || 'guest'}:${Number.isInteger(documentIndex) ? documentIndex : 0}`;
+  }
+
+  /** True when the duration is safe to decode for the waveform preview. */
+  function waveformDecodeAllowed(durationSeconds) {
+    const seconds = Number(durationSeconds);
+    return !(Number.isFinite(seconds) && seconds > MAX_WAVEFORM_SECONDS);
   }
 
   /** Flat sync-point list: [{barIndex, barOccurence, barPosition, millisecondOffset}]. */
@@ -281,6 +291,15 @@
 
   function studio() { return (typeof window !== 'undefined' && window.studio) || null; }
   function atModel() { return (typeof window !== 'undefined' && window.alphaTab && window.alphaTab.model) || null; }
+  function currentKey() {
+    const st = studio();
+    return songKeyFor({
+      lessonId: st?.remoteLesson?.id ?? null,
+      localId: st?.localId ?? null,
+      documentIndex: st?.documentIndex ?? 0,
+      owner: st?.localOwner ?? null
+    });
+  }
   function toastStatus(message) { if (els.status) els.status.textContent = message; }
 
   function currentFlat() {
@@ -586,9 +605,8 @@
   /** Called from app.js renderScore (BACKING-TRACK hook) after every score change. */
   function onScoreChanged(score) {
     if (!isBrowser || !controller.ready || controller.applying || !score) return;
-    const st = studio();
-    if (!st) return;
-    const key = songKeyFor({ lessonId: st.remoteLesson?.id ?? null, localId: st.localId ?? null, documentIndex: st.documentIndex ?? 0 });
+    if (!studio()) return;
+    const key = currentKey();
     if (key !== controller.key) {
       controller.key = key;
       const token = ++controller.loadToken;
@@ -631,12 +649,44 @@
     applyAudioMix();
   }
 
+  // Metadata gives the decoded length without decoding the samples; a long compressed file
+  // can otherwise allocate gigabytes inside decodeAudioData and freeze the editor.
+  function audioDurationSeconds() {
+    const element = controller.audio;
+    if (!element) return Promise.resolve(0);
+    if (Number.isFinite(element.duration) && element.duration > 0) return Promise.resolve(element.duration);
+    return new Promise(resolve => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        element.removeEventListener('loadedmetadata', done);
+        element.removeEventListener('error', done);
+        resolve(Number.isFinite(element.duration) && element.duration > 0 ? element.duration : 0);
+      };
+      const timer = setTimeout(done, 5000);
+      element.addEventListener('loadedmetadata', done, {once: true});
+      element.addEventListener('error', done, {once: true});
+    });
+  }
+
   async function decodePeaksBackground() {
     const token = ++controller.decodeToken;
     const bytes = controller.bytes;
     if (!bytes?.length || typeof OfflineAudioContext === 'undefined') return;
     toastStatus('Decoding waveform…');
     try {
+      const duration = await audioDurationSeconds();
+      if (token !== controller.decodeToken) return;
+      if (!duration || !waveformDecodeAllowed(duration)) {
+        controller.peaks = null;
+        drawWave();
+        toastStatus(duration
+          ? `Audio is ${formatAudioTime(duration * 1000)} long. The waveform was skipped to keep the editor responsive.`
+          : 'Audio loaded, but its length could not be read, so the waveform was skipped.');
+        return;
+      }
       const context = new OfflineAudioContext(1, 1, 8000);
       const copy = bytes.slice(0).buffer;
       const decoded = await context.decodeAudioData(copy);
@@ -666,11 +716,7 @@
   async function setAudioBytes(bytes, { name = 'audio track', mime = '', resetAlign = false, prefs = null } = {}) {
     const token = ++controller.loadToken;
     clearAudioState();
-    controller.key = controller.key || songKeyFor({
-      lessonId: studio()?.remoteLesson?.id ?? null,
-      localId: studio()?.localId ?? null,
-      documentIndex: studio()?.documentIndex ?? 0
-    });
+    controller.key = controller.key || currentKey();
     controller.bytes = bytes;
     controller.fileName = String(name || 'audio track').slice(0, 180);
     controller.mime = String(mime || '');
@@ -918,6 +964,9 @@
   /** Keep score.backingTrack attached: JSON snapshots drop the raw bytes. */
   function attachTo(score, model) {
     if (!score || !controller.bytes?.length) return;
+    // renderScore runs this before onScoreChanged notices a song switch. Attaching the old
+    // song's bytes here would then save them under the new song's key.
+    if (studio() && currentKey() !== controller.key) return;
     const BT = model?.BackingTrack || atModel()?.BackingTrack;
     if (!BT) return;
     try {
@@ -962,11 +1011,13 @@
 
   return {
     MAX_AUDIO_BYTES,
+    MAX_WAVEFORM_SECONDS,
     ACCEPTED_EXTENSIONS,
     PEAK_COLUMNS,
     clamp,
     validateAudioFile,
     songKeyFor,
+    waveformDecodeAllowed,
     readSyncPoints,
     normalizeFlatPoints,
     writeSyncPoints,
