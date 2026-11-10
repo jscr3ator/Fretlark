@@ -623,6 +623,7 @@
     document.querySelector('.song-sharing').classList.toggle('is-shared', Boolean(lesson.shared));
     for (const id of ['detail-share', 'selected-device', 'selected-settings', 'selected-preview']) $(id).hidden = local;
     $('selected-video').hidden = local;
+    $('selected-preview').title = lesson.shared && lesson.share_token ? 'Open the shared link in a new tab, as your audience sees it.' : 'Open the audience player in a new tab. Only you can open it.';
     if (!local) $('selected-video').href = `/editor/video.html?lesson=${encodeURIComponent(lesson.id)}`;
     $('selected-cloud-save').hidden = !local;
     $('selected-cloud-save').disabled = localCloudSaves.has(lesson.local_id);
@@ -639,11 +640,12 @@
     }
   }
 
-  // Opens the owner-only audience player full page in a new tab. The page needs this account's
-  // session, so the link works for nobody else; it says so in a banner at the top.
+  // Opens the audience player full page in a new tab: the public share link when the song is shared,
+  // otherwise the owner-only preview, which needs this account's session and says so in a banner.
   function openAudienceView() {
     const lesson = lessons.find(item => item.id === librarySelectedId);
     if (!lesson) return;
+    if (lesson.shared && lesson.share_token) { window.open(shareUrl(lesson), '_blank', 'noopener'); return; }
     const url = new URL('/editor/player.html', location.origin);
     url.searchParams.set('lesson', lesson.id);
     url.searchParams.set('preview', '1');
