@@ -123,6 +123,9 @@
     $('staff-note').hidden = hasTab;
     applyTheme(o.theme);
     api.updateSettings();
+    // The frames are a fixed size, so the screen's pixel ratio would only make the tiles bigger.
+    // At 2-3x (high-DPI screens) a tile passes Firefox's 32767 px canvas limit and drawing fails.
+    if (at.Environment) at.Environment.highDpiFactor = 1;
     const done = new Promise((resolve, reject) => { rendering = {resolve, reject}; });
     try { api.renderScore(score, [o.track]); await done; }
     finally { rendering = null; }

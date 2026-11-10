@@ -378,3 +378,41 @@ input[type=checkbox]{accent-color:var(--accent)}
 }
 @keyframes report-up{from{transform:translateY(24px);opacity:0}}
 @media print{.more-menu,.report-dialog{display:none!important}}
+
+/* Embed player: a compact shared song with only the practice controls that fit. */
+.embed-open{display:inline-flex;align-items:center;gap:5px;flex:none;height:30px;padding:0 11px;border-radius:99px;background:var(--control);color:var(--text);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s}
+.embed-open:hover{background:var(--control-hover)}
+.embed-open svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.embed-player .player-header{min-height:44px;gap:8px;padding:3px 12px}
+.embed-player .player-brand img{width:24px;height:24px}
+.embed-player #lesson-badge{display:none}
+.embed-player .song-caption strong{font-size:14px}
+.embed-player .song-caption-sub{font-size:11.5px}
+.embed-player #btn-print,.embed-player #btn-download,.embed-player #btn-more,.embed-player #toggle-hand-guide,.embed-player .hand-guide{display:none!important}
+.embed-player .practice-toolbar-inner{min-height:44px;gap:8px;padding:4px 12px}
+.embed-player .practice-toolbar label{gap:6px}
+.embed-player .tool-button,.embed-player .settings-action{height:32px;padding:0 10px;font-size:12px}
+.embed-player .practice-toolbar input[type=number],.embed-player .practice-toolbar select{height:32px}
+.embed-player .practice-toolbar input[type=number]{width:62px}
+.embed-player .score-scroll{padding:10px 6px 16px}
+.embed-player .score-page{border-radius:0;box-shadow:none}
+.embed-player .practice-bar{padding:5px 12px max(5px,env(safe-area-inset-bottom))}
+.embed-player .transport-row{min-height:42px;gap:6px 12px}
+.embed-player .play-button{width:40px;height:40px}
+.embed-player .restart-button{width:34px;height:34px}
+.embed-player .toast{top:12px;bottom:auto}
+@media (max-width:700px){
+  .embed-player .player-header{min-height:40px;padding-inline:8px;gap:6px}
+  .embed-player .player-brand img{width:22px;height:22px}
+  .embed-player .embed-open{height:28px;padding:0 9px;font-size:11px}
+  .embed-player .embed-open svg{display:none}
+  .embed-player .practice-toolbar-inner{gap:6px;padding-inline:8px}
+  .embed-player .practice-bar{padding-inline:8px}
+}
+@media (max-width:480px){
+  .embed-player #player-artist,.embed-player .song-caption .cover-credit{display:none}
+  .embed-player #btn-count-in,.embed-player #btn-fullscreen{display:none!important}
+  .embed-player .practice-toolbar small{display:none}
+  .embed-player .practice-toolbar input[type=number]{width:52px}
+  .embed-player .practice-toolbar select{max-width:122px}
+}

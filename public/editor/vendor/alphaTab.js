@@ -58060,30 +58060,38 @@
 			this.width = this._system.x + this._system.width + this.pagePadding[2];
 			currentBarIndex = 0;
 			let x = 0;
+			// Fretlark patch: bars joined by effect lines (palm mute, let ring, vibrato...) share one partial, which
+			// can grow past browser canvas limits (Firefox: 32767 px). Split wide partials into chunks of at most
+			// 8000 device pixels; each chunk paints the whole partial shifted by its offset, so lines stay continuous.
+			const maxChunkWidth = Math.max(64, 8e3 / (this.renderer.settings.display.scale * Environment.highDpiFactor));
 			for (let i = 0; i < partials.length; i++) {
 				const partial = partials[i];
-				const e = new RenderFinishedEventArgs();
-				e.reuseViewport = renderHints?.reuseViewport ?? false;
-				e.x = x;
-				e.y = 0;
-				e.totalWidth = this.width;
-				e.totalHeight = this.height;
-				e.width = partial.width;
-				e.height = this.height;
-				e.firstMasterBarIndex = partial.masterBars[0].index;
-				e.lastMasterBarIndex = partial.masterBars[partial.masterBars.length - 1].index;
-				x += partial.width;
 				const partialBarIndex = currentBarIndex;
 				const partialIndex = i;
 				this._system.buildBoundingsLookup(0, 0);
-				this.registerPartial(e, (canvas) => {
-					let renderX = this._system.getBarX(partial.masterBars[0].index) + this._system.accoladeWidth;
-					if (partialIndex === 0) renderX -= this._system.x + this._system.accoladeWidth;
-					canvas.color = this.renderer.settings.display.resources.mainGlyphColor;
-					canvas.textAlign = TextAlign.Left;
-					Logger.debug(this.name, `Rendering partial from bar ${partial.masterBars[0].index} to ${partial.masterBars[partial.masterBars.length - 1].index}`, null);
-					this._system.paintPartial(-renderX, this._system.y, canvas, partialBarIndex, partial.masterBars.length);
-				});
+				const chunkCount = Math.max(1, Math.ceil(partial.width / maxChunkWidth));
+				for (let chunk = 0; chunk < chunkCount; chunk++) {
+					const offset = chunk * maxChunkWidth;
+					const e = new RenderFinishedEventArgs();
+					e.reuseViewport = renderHints?.reuseViewport ?? false;
+					e.x = x + offset;
+					e.y = 0;
+					e.totalWidth = this.width;
+					e.totalHeight = this.height;
+					e.width = Math.min(maxChunkWidth, partial.width - offset);
+					e.height = this.height;
+					e.firstMasterBarIndex = partial.masterBars[0].index;
+					e.lastMasterBarIndex = partial.masterBars[partial.masterBars.length - 1].index;
+					this.registerPartial(e, (canvas) => {
+						let renderX = this._system.getBarX(partial.masterBars[0].index) + this._system.accoladeWidth;
+						if (partialIndex === 0) renderX -= this._system.x + this._system.accoladeWidth;
+						canvas.color = this.renderer.settings.display.resources.mainGlyphColor;
+						canvas.textAlign = TextAlign.Left;
+						Logger.debug(this.name, `Rendering partial from bar ${partial.masterBars[0].index} to ${partial.masterBars[partial.masterBars.length - 1].index}`, null);
+						this._system.paintPartial(-renderX - offset, this._system.y, canvas, partialBarIndex, partial.masterBars.length);
+					});
+				}
+				x += partial.width;
 				currentBarIndex += partial.masterBars.length;
 			}
 			this.height = this.layoutAndRenderBottomScoreInfo(this.height);

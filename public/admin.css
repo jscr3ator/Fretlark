@@ -484,6 +484,11 @@ dialog::backdrop{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(8px);ba
 .link-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px 14px;font-size:12.5px;color:var(--label-2)}
 .link-actions{display:flex;gap:16px}
 .link-actions .text-button{font-size:12.5px}
+.embed-row{padding:0 14px 14px}
+.embed-label{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--label-3);letter-spacing:.01em}
+.embed-field{padding:0}
+.embed-field textarea{flex:1;min-width:0;height:66px!important;padding:8px 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace!important;color:var(--label-2)!important;resize:none;overflow:auto}
+.embed-field .button{align-self:flex-start}
 .link-actions .icon{width:12px;height:12px;stroke-width:2.2}
 .group-label{margin:22px 4px 8px;font-size:12px;font-weight:600;color:var(--label-3);letter-spacing:.01em}
 .settings-list{border:1px solid var(--separator);border-radius:14px;background:var(--surface);overflow:hidden}
@@ -791,13 +796,23 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
 .setlist-songs-head{display:flex;align-items:center;gap:8px;margin:22px 0 8px}
 .setlist-songs-head h3{margin:0;font-size:15px;font-weight:600}
 .setlist-songs{display:grid;border:1px solid var(--separator);border-radius:14px;background:var(--surface);overflow:hidden}
-.setlist-song{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--separator)}
+.setlist-song{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--separator)}
 .setlist-song:first-child{border-top:0}
+.setlist-drag{display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px;width:40px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--label-3);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.setlist-drag svg{width:10px;height:16px;fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round;pointer-events:none}
+.setlist-drag:hover,.setlist-drag:focus-visible{background:var(--fill-2);color:var(--label)}
+.setlist-drag:disabled{opacity:.4;cursor:default}
+.setlist-song.is-dragging{position:relative;z-index:2;background:var(--fill);box-shadow:0 5px 20px #0003;outline:1px solid var(--separator);border-radius:10px;will-change:transform}
+.setlist-song.is-dragging .setlist-drag{cursor:grabbing;color:var(--accent)}
+.setlist-songs.is-sorting{overflow:visible;user-select:none;-webkit-user-select:none}
+.setlist-songs.is-sorting .setlist-song{transition:transform 160ms cubic-bezier(.2,.8,.2,1);will-change:transform}
+.setlist-songs.is-sorting .setlist-song.is-dragging{transition:none;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.setlist-songs.is-sorting .setlist-song{transition:none}}
 .setlist-song-index{color:var(--label-3);font-size:11.5px;font-variant-numeric:tabular-nums;text-align:right}
-.setlist-song-copy{display:grid;gap:1px;min-width:0}
+.setlist-song-copy{display:grid;gap:1px;min-width:0;cursor:grab}
 .setlist-song-copy strong{overflow:hidden;font-size:13.5px;font-weight:550;text-overflow:ellipsis;white-space:nowrap}
 .setlist-song-copy small{overflow:hidden;color:var(--label-2);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
-.setlist-song-actions{display:flex;gap:1px}
+.setlist-song-actions{display:flex;gap:1px;grid-column:4}
 .setlist-move{font-size:14px;font-weight:600;line-height:1}
 .setlist-hint{margin:10px 2px 0;color:var(--label-2);font-size:12.5px;line-height:1.5}
 .setlist-songs:has(.setlist-empty){border-style:dashed;background:transparent}
@@ -824,7 +839,7 @@ a.lesson-row{text-decoration:none;color:inherit;cursor:pointer}
   .setlists-toolbar{align-items:flex-start;flex-direction:column;gap:10px}
   .setlist-create{flex-wrap:wrap}
   .setlist-row{padding:13px 12px}
-  .setlist-song{grid-template-columns:20px minmax(0,1fr) auto;gap:8px;padding:10px}
+  .setlist-song{grid-template-columns:40px minmax(0,1fr) auto;gap:6px;padding:8px}
   .setlist-song .status-badge{grid-column:2;justify-self:start}
   .setlist-song-actions{grid-column:3;grid-row:1/3}
   .setlist-share-row{padding:12px}

@@ -119,7 +119,7 @@
       (action === 'takedown' ? panel.querySelector('input, [data-report-action=disable]') : cardNode.querySelector('[data-report-action=takedown]'))?.focus();
       return;
     }
-    if (action === 'delete' && !confirm('Delete this report? This cannot be undone.')) return;
+    if (action === 'delete' && !await window.appConfirm('Delete this report?\n\nThis cannot be undone.', {ok: 'Delete', danger: true})) return;
     busy = true; button.disabled = true;
     try {
       const data = action === 'disable' ? await call(`/${reportId}/disable-link`, 'POST', {violation: !!cardNode.querySelector('[data-report-strike]')?.checked})

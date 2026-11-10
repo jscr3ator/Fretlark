@@ -42,6 +42,9 @@ export default {
   else if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
    const token = url.pathname.split('/')[2];
    response = new Response(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><link rel="icon" href="/favicon.svg?v=4"><title>Fretlark</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0}iframe{position:fixed;inset:0}</style></head><body><iframe title="Lesson practice player" src="/editor/player.html?share=${token}" allow="fullscreen"></iframe></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+  } else if(/^\/embed\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
+   const token = url.pathname.split('/')[2];
+   response = new Response(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta name="color-scheme" content="light"><link rel="icon" href="/favicon.svg?v=4"><title>Fretlark</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#f2f2f5}iframe{position:fixed;inset:0}</style></head><body><iframe title="Fretlark song player" src="/editor/player.html?share=${token}&embed=1" allow="fullscreen; autoplay"></iframe></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
   } else if(/^\/set\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
    response = await env.ASSETS.fetch(new Request(new URL('/set.html',url),cleanRequest));
   } else if(['/editor', '/editor/'].includes(url.pathname)) {
@@ -54,12 +57,19 @@ export default {
   } else response = await env.ASSETS.fetch(cleanRequest);
   const result = new Response(response.body,response);
   for(const [key,value] of Object.entries(security)) result.headers.set(key,value);
+  // Only the embed wrapper and the shared player inside it may be framed elsewhere.
+  const privatePreview = url.pathname === '/editor/player.html' && (url.searchParams.has('lesson') || url.searchParams.has('preview'));
+  const embedPlayer = url.pathname === '/editor/player.html' && url.searchParams.has('share') && url.searchParams.get('embed') === '1' && !privatePreview;
+  if(/^\/embed\/[a-f0-9]{64}\/?$/.test(url.pathname) || embedPlayer) {
+   result.headers.set('Content-Security-Policy',"frame-ancestors *; object-src 'none'; base-uri 'self'");
+   result.headers.delete('X-Frame-Options');
+  }
   // The video exporter uses the multi-threaded ffmpeg core when the page is cross-origin isolated.
   if(url.pathname === '/editor/video.html' || url.pathname === '/editor/video-convert-worker.js') {
    result.headers.set('Cross-Origin-Opener-Policy','same-origin');
    result.headers.set('Cross-Origin-Embedder-Policy','credentialless');
   }
-  if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname) || /^\/set\/[a-f0-9]{64}\/?$/.test(url.pathname) || (url.pathname === '/editor/player.html' && url.searchParams.has('share'))) result.headers.set('X-Robots-Tag','noindex, nofollow');
+  if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname) || /^\/embed\/[a-f0-9]{64}\/?$/.test(url.pathname) || /^\/set\/[a-f0-9]{64}\/?$/.test(url.pathname) || (url.pathname === '/editor/player.html' && url.searchParams.has('share'))) result.headers.set('X-Robots-Tag','noindex, nofollow');
   return result;
  }
 };

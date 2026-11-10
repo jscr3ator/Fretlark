@@ -10,7 +10,7 @@
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
   <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=7e3cdf843f1c">
+  <link rel="stylesheet" href="/admin.css?v=81d93004a195">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -475,6 +475,10 @@
         <div class="link-details"><div class="link-details-inner">
           <div class="link-field"><input id="share-url" readonly aria-label="Shared link"><button class="button primary" id="copy-link" type="button"><svg class="icon"><use href="#i-copy"/></svg>Copy</button></div>
           <div class="link-meta"><span>View only · viewers can't edit</span><span class="link-actions"><a id="open-link" class="text-button" href="#" target="_blank" rel="noopener">Open<svg class="icon"><use href="#i-external"/></svg></a><button class="text-button" id="rotate-link" type="button">Reset link</button></span></div>
+          <div class="embed-row" id="embed-row" hidden>
+            <p class="embed-label">Embed</p>
+            <div class="link-field embed-field"><textarea id="share-embed" class="embed-snippet" readonly rows="3" aria-label="Embed code"></textarea><button class="button primary" id="copy-embed" type="button"><svg class="icon"><use href="#i-copy"/></svg>Copy</button></div>
+          </div>
         </div></div>
       </section>
       <p id="share-message" class="form-status" role="status" aria-live="polite"></p>
@@ -503,15 +507,16 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/editor/vendor/alphaTab.js?v=ac899d4f853a"></script>
+  <script src="/editor/vendor/alphaTab.js?v=29df8d5a39e0"></script>
   <script src="/editor/vendor/fflate.js?v=c3b34f2e9f5e"></script>
   <script src="/editor/model.js?v=601031319cc9"></script>
   <script src="/admin-preview.js?v=8e81f4ff6975"></script>
   <script src="/local-songs.js?v=2ca6499f8278"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
   <script src="/account-settings.js?v=14c2b1e635d4"></script>
-  <script src="/admin-reports.js?v=e3c56df06fc2"></script>
-  <script src="/admin-setlists.js?v=77d38784eabc"></script>
-  <script src="/admin.js?v=1dac4abf8937"></script>
+  <script src="/dialogs.js?v=f7f8ef5eea37"></script>
+  <script src="/admin-reports.js?v=815c3a6017ce"></script>
+  <script src="/admin-setlists.js?v=457aed10d180"></script>
+  <script src="/admin.js?v=db65e921b654"></script>
 </body>
 </html>

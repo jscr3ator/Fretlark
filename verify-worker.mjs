@@ -14,6 +14,27 @@ assert.match(home.headers.get('Content-Security-Policy'), /frame-ancestors 'self
 const shared=await worker.fetch(new Request('https://fretline.example/view/'+'a'.repeat(64)),env);
 assert.equal(shared.headers.get('Cache-Control'),'no-store');
 assert.ok((await shared.text()).includes('/editor/player.html?share='+'a'.repeat(64)));
+// Embed routes are the only pages other sites may frame.
+const embedToken='b'.repeat(64);
+const embed=await worker.fetch(new Request('https://fretline.example/embed/'+embedToken),env);
+assert.equal(embed.status,200);
+assert.match(embed.headers.get('Content-Security-Policy'),/^(?:frame-ancestors \*)/);
+assert.equal(embed.headers.get('X-Frame-Options'),null);
+assert.equal(embed.headers.get('X-Robots-Tag'),'noindex, nofollow');
+assert.ok((await embed.text()).includes('/editor/player.html?share='+embedToken+'&embed=1'));
+const embedPlayer=await worker.fetch(new Request('https://fretline.example/editor/player.html?share='+embedToken+'&embed=1'),env);
+assert.equal(embedPlayer.status,200);
+assert.match(embedPlayer.headers.get('Content-Security-Policy'),/^(?:frame-ancestors \*)/);
+assert.equal(embedPlayer.headers.get('X-Frame-Options'),null);
+assert.equal(embedPlayer.headers.get('X-Robots-Tag'),'noindex, nofollow');
+const adminPage=await worker.fetch(new Request('https://fretline.example/admin'),env);
+assert.match(adminPage.headers.get('Content-Security-Policy'),/frame-ancestors 'self'/);
+assert.equal(adminPage.headers.get('X-Frame-Options'),'SAMEORIGIN');
+for(const url of ['https://fretline.example/editor/player.html?lesson=x&embed=1','https://fretline.example/editor/player.html?preview=1&embed=1']){
+ const preview=await worker.fetch(new Request(url),env);
+ assert.match(preview.headers.get('Content-Security-Policy'),/frame-ancestors 'self'/);
+ assert.equal(preview.headers.get('X-Frame-Options'),'SAMEORIGIN');
+}
 const demo=await worker.fetch(new Request('https://fretline.example/api/demo',{headers:{cookie:'fretline_session='+'a'.repeat(64)}}),env);
 assert.equal(await demo.text(),'/editor/demo.gp','Legacy demo route uses static assets without database/session work');
 console.log('PASS: standalone routes, security headers and identity boundary.');

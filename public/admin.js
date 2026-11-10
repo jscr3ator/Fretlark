@@ -272,10 +272,10 @@
     return false;
   }
 
-  function requestDialogClose(dialogId) {
+  async function requestDialogClose(dialogId) {
     if(dialogId === 'password-dialog' && savingPassword) return;
     if(accountControls && !accountControls.canClose(dialogId)) return;
-    if (hasUnsavedChanges(dialogId) && !window.confirm('Discard unsaved changes?')) return;
+    if (hasUnsavedChanges(dialogId) && !await window.appConfirm('Discard unsaved changes?', {ok: 'Discard', danger: true})) return;
     closeDialog(dialogId);
   }
 
@@ -332,7 +332,13 @@
   }
 
   function shareUrl(lesson) {
-    return `${location.origin}/view/${encodeURIComponent(lesson.share_token)}`;
+    // The desktop app runs from a local address; links people copy must still point at the site.
+    return `${window.FRETLARK_ORIGIN || location.origin}/view/${encodeURIComponent(lesson.share_token)}`;
+  }
+
+  function embedSnippet(lesson) {
+    const title = esc(lesson.title || 'Untitled song');
+    return `<iframe src="${window.FRETLARK_ORIGIN || location.origin}/embed/${encodeURIComponent(lesson.share_token)}" width="100%" height="480" style="border:0;border-radius:12px" allow="fullscreen; autoplay" loading="lazy" title="${title} on Fretlark"></iframe>`;
   }
 
   const relative = new Intl.RelativeTimeFormat(undefined, {numeric: 'auto'});
@@ -1169,7 +1175,7 @@
   }
 
   async function deleteLesson(lesson) {
-    if (savingDetails || !lesson || !window.confirm(`Permanently delete “${lesson.title}” and revoke its shared link? This cannot be undone.`)) return;
+    if (savingDetails || !lesson || !await window.appConfirm(`Permanently delete “${lesson.title}”?\n\nIts shared link stops working. This cannot be undone.`, {ok: 'Delete', danger: true}) || savingDetails) return;
     savingDetails = true;
     for (const id of ['delete-lesson', 'selected-delete', 'details-save']) $(id).disabled = true;
     $('details-dialog').querySelectorAll('[data-close]').forEach(button => { button.disabled = true; });
@@ -1191,9 +1197,9 @@
     }
   }
 
-  function deleteLocalSong(song) {
+  async function deleteLocalSong(song) {
     if(localCloudSaves.has(song.local_id || song.id))return;
-    if (!window.confirm(`Remove “${song.title || 'Untitled song'}” from local songs? It isn’t in your Library, so this can’t be undone.`)) return;
+    if (!await window.appConfirm(`Remove “${song.title || 'Untitled song'}” from local songs?\n\nIt isn’t in your Library, so this can’t be undone.`, {ok: 'Remove', danger: true}) || localCloudSaves.has(song.local_id || song.id)) return;
     try {
       window.LocalSongs.remove(localOwner, song.local_id || song.id);
       render();
@@ -1230,7 +1236,8 @@
   // Moves a cloud song into this browser only: the local copy is saved and checked before the cloud copy is deleted.
   async function keepOnDevice(lesson) {
     if (!lesson || savingDetails || !window.LocalSongs || !window.ScoreModel) return;
-    if (!confirm(`Keep “${lesson.title || 'Untitled song'}” locally only?\n\nIt leaves your Library and its share link stops working. It stays in this browser, isn’t backed up, and clearing browser data deletes it.`)) return;
+    const where = window.FRETLARK_DESKTOP ? 'in this app on this computer' : 'in this browser';
+    if (!await window.appConfirm(`Keep “${lesson.title || 'Untitled song'}” locally only?\n\nIt leaves your Library and its share link stops working. It stays ${where}, isn’t backed up, and ${window.FRETLARK_DESKTOP ? 'removing the app’s data' : 'clearing browser data'} deletes it.`, {ok: 'Keep locally only'}) || savingDetails) return;
     savingDetails = true; $('selected-device').disabled = true;
     try {
       const response = await fetch(`/api/admin/lessons/${encodeURIComponent(lesson.id)}/file`, {credentials: 'same-origin', cache: 'no-store'});
@@ -1318,12 +1325,18 @@
     $('share-allow-download').checked = settings.allow_download;
     $('share-url').value = active ? shareUrl(selected) : '';
     $('copy-link').disabled = !active || savingShare;
+    $('embed-row').hidden = !active;
+    $('share-embed').value = active ? embedSnippet(selected) : '';
+    $('copy-embed').disabled = !active || savingShare;
   }
 
   function setShareBusy(busy) {
     savingShare = busy;
-    $('share-dialog').querySelectorAll('select, input, button').forEach(control => { control.disabled = busy; });
-    if (!busy) $('copy-link').disabled = !selected?.shared;
+    $('share-dialog').querySelectorAll('select, input, textarea, button').forEach(control => { control.disabled = busy; });
+    if (!busy) {
+      $('copy-link').disabled = !selected?.shared;
+      $('copy-embed').disabled = !selected?.shared;
+    }
     $('share-save-state').textContent = busy ? 'Saving…' : '';
   }
 
@@ -1350,6 +1363,22 @@
       $('share-url').focus();
       $('share-url').select();
       status('share-message', 'Press Ctrl+C to copy the selected link.');
+    }
+  }
+
+  let copyEmbedTimer;
+  async function copyEmbed() {
+    if (!selected?.shared) return;
+    try {
+      await navigator.clipboard.writeText(embedSnippet(selected));
+      const label = $('copy-embed').lastChild;
+      label.textContent = 'Copied';
+      clearTimeout(copyEmbedTimer);
+      copyEmbedTimer = setTimeout(() => { label.textContent = 'Copy'; }, 1600);
+    } catch {
+      $('share-embed').focus();
+      $('share-embed').select();
+      status('share-message', 'Press Ctrl+C to copy the selected embed code.');
     }
   }
 
@@ -1405,7 +1434,7 @@
   }
 
   async function rotateLink() {
-    if (!selected || savingShare || !window.confirm('Create a new link? The old link will stop working.')) return;
+    if (!selected || savingShare || !await window.appConfirm('Create a new link?\n\nThe old link will stop working.', {ok: 'Create new link', danger: true}) || savingShare) return;
     setShareBusy(true);
     try {
       updateLesson(await api(`admin/lessons/${encodeURIComponent(selected.id)}/share`, json('POST', {rotate: true})));
@@ -1552,6 +1581,7 @@
     (Array.from($('lesson-list').children).find(row => row.dataset.id === librarySelectedId) || $('search')).focus();
   });
   $('copy-link').addEventListener('click', copyLink);
+  $('copy-embed').addEventListener('click', copyEmbed);
   $('rotate-link').addEventListener('click', rotateLink);
   $('share-enabled').addEventListener('change', changeShareAccess);
   $('share-dialog').addEventListener('change',event=>{

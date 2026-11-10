@@ -4,6 +4,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   let setlists = [], detail = null, lessons = null, search = '', busy = false, listLoading = false;
+  let songDrag = null;
 
   async function api(path, method = 'GET', body) {
     const response = await fetch(path, {method, cache: 'no-store', credentials: 'same-origin',
@@ -22,7 +23,7 @@
   function songRow(song, index, total) {
     const title = esc(song.title || 'Untitled song');
     return `<div class="setlist-song" data-song="${esc(song.id)}">
-      <span class="setlist-song-index">${index + 1}</span>
+      <button class="setlist-drag" type="button" aria-label="Drag to reorder ${title}" title="Drag to reorder, or use Up and Down keys" ${total < 2 ? 'disabled' : ''}><svg viewBox="0 0 12 18" aria-hidden="true"><path d="M3 3h.01M9 3h.01M3 9h.01M9 9h.01M3 15h.01M9 15h.01"/></svg><span class="setlist-song-index">${index + 1}</span></button>
       <span class="setlist-song-copy"><strong>${title}</strong>${song.artist ? `<small>${esc(song.artist)}</small>` : ''}</span>
       ${song.shared ? '' : '<span class="status-badge">Link off</span>'}
       <span class="setlist-song-actions">
@@ -63,6 +64,7 @@
   }
 
   function showList() {
+    finishSongDrag(false);
     detail = null; search = ''; status('');
     renderList();
     refreshList();
@@ -79,8 +81,9 @@
   }
 
   function renderEditor() {
+    finishSongDrag(false);
     const d = detail, songs = d.songs || [], off = songs.filter(song => !song.shared);
-    const shared = Boolean(d.shared && d.share_token), shareUrl = shared ? `${location.origin}/set/${d.share_token}` : '';
+    const shared = Boolean(d.shared && d.share_token), shareUrl = shared ? `${window.FRETLARK_ORIGIN || location.origin}/set/${d.share_token}` : '';
     $('setlists-content').innerHTML = `<button class="text-button users-back" type="button" data-setlists-back>‹ All setlists</button>
       <div class="setlist-editor-head"><input id="setlist-title" type="text" maxlength="120" value="${esc(d.title || '')}" aria-label="Setlist title"><button class="icon-button danger-icon" type="button" data-setlist-delete aria-label="Delete setlist" title="Delete setlist"><svg class="icon"><use href="#i-trash"/></svg></button></div>
       <label class="field-label" for="setlist-notes">Notes</label>
@@ -108,17 +111,143 @@
     }
   }
 
-  async function patchSongs(ids) {
+  async function patchSongs(ids, focusSong) {
     if (busy || !detail) return;
+    const current = detail;
     busy = true;
+    const refresh = () => {
+      if (!focusSong) { renderEditor(); return; }
+      const list = $('setlists-content').querySelector('.setlist-songs');
+      if (detail.songs.some((song, index) => list.children[index]?.dataset.song !== song.id)) {
+        list.innerHTML = detail.songs.map((song, index) => songRow(song, index, detail.songs.length)).join('');
+      }
+      numberSongs(list);
+      [...list.children].find(row => row.dataset.song === focusSong)?.querySelector('.setlist-drag')?.focus({preventScroll: true});
+    };
     try {
-      detail = await call(`/${encodeURIComponent(detail.id)}`, 'PATCH', {lesson_ids: ids});
-      renderEditor();
-      status('Saved.');
+      const updated = await call(`/${encodeURIComponent(current.id)}`, 'PATCH', {lesson_ids: ids});
+      if (detail !== current) return;
+      detail = updated;
+      refresh();
+      status(focusSong ? `Order saved. Position ${ids.indexOf(focusSong) + 1} of ${ids.length}.` : 'Saved.');
     } catch (error) {
+      if (detail !== current) return;
+      if (focusSong) refresh();
       status(error.message, true);
     } finally { busy = false; }
   }
+
+  function numberSongs(list, rows = [...list.children]) {
+    rows.forEach((row, index) => {
+      row.querySelector('.setlist-song-index').textContent = index + 1;
+      row.querySelector('[data-setlist-move="up"]').disabled = index === 0;
+      row.querySelector('[data-setlist-move="down"]').disabled = index === rows.length - 1;
+    });
+  }
+
+  function positionSongDrag() {
+    const d = songDrag;
+    if (!d?.active) return;
+    const scroll = d.scroll.scrollTop - d.scrollStart;
+    const center = d.y - d.offset + d.height / 2;
+    const others = d.rows.filter(row => row !== d.row);
+    const to = others.filter(row => {
+      const bounds = d.bounds[d.rows.indexOf(row)];
+      return center >= bounds.top - scroll + bounds.height / 2;
+    }).length;
+    d.order = [...others];
+    d.order.splice(to, 0, d.row);
+    // Keep DOM and pointer capture stable until drop. Neighbours slide into the gap.
+    d.rows.forEach((row, index) => {
+      const shift = row === d.row ? d.y - d.startY + scroll
+        : index > d.from && index <= to ? -d.height
+        : index < d.from && index >= to ? d.height : 0;
+      row.style.transform = `translateY(${shift}px)`;
+    });
+    numberSongs(d.list, d.order);
+  }
+
+  function scrollSongDrag() {
+    const d = songDrag;
+    if (!d?.active) return;
+    if (!d.row.isConnected || !$('setlists-dialog').open) { finishSongDrag(false); return; }
+    const bounds = d.scroll.getBoundingClientRect();
+    const speed = d.y < bounds.top + 48 ? -12 : d.y > bounds.bottom - 48 ? 12 : 0;
+    if (speed) { d.scroll.scrollTop += speed; positionSongDrag(); }
+    d.frame = requestAnimationFrame(scrollSongDrag);
+  }
+
+  function finishSongDrag(save) {
+    const d = songDrag;
+    if (!d) return;
+    songDrag = null;
+    cancelAnimationFrame(d.frame);
+    const order = save && d.active ? d.order : d.rows;
+    const previous = d.rows.map(row => row.getBoundingClientRect().top);
+    d.row.classList.remove('is-dragging');
+    d.list.classList.remove('is-sorting');
+    if (d.handle.hasPointerCapture(d.pointer)) d.handle.releasePointerCapture(d.pointer);
+    d.rows.forEach(row => { row.style.transform = ''; });
+    d.list.append(...order);
+    numberSongs(d.list);
+    if (d.active && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) d.rows.forEach((row, index) => {
+      const shift = previous[index] - row.getBoundingClientRect().top;
+      if (Math.abs(shift) > 1) row.animate?.([{transform: `translateY(${shift}px)`}, {transform: 'translateY(0)'}], {duration: 160, easing: 'cubic-bezier(.2,.8,.2,1)'});
+    });
+    const ids = order.map(row => row.dataset.song);
+    if (save && d.active && ids.some((id, i) => id !== d.rows[i].dataset.song)) {
+      patchSongs(ids, d.row.dataset.song);
+    }
+  }
+
+  document.addEventListener('pointerdown', event => {
+    let handle = event.target.closest('.setlist-drag');
+    if (!handle && event.pointerType !== 'touch' && !event.target.closest('button,a,input,textarea')) {
+      handle = event.target.closest('.setlist-song')?.querySelector('.setlist-drag');
+    }
+    if (!handle || handle.disabled || busy || songDrag || !detail || !$('setlists-dialog').open || !event.isPrimary || event.button !== 0) return;
+    const row = handle.closest('[data-song]'), list = row.parentElement;
+    const rows = [...list.children];
+    rows.forEach(item => item.getAnimations?.().forEach(animation => animation.cancel()));
+    const bounds = rows.map(item => item.getBoundingClientRect());
+    songDrag = {handle, row, list, rows, order: rows, bounds, from: rows.indexOf(row), height: row.getBoundingClientRect().height, pointer: event.pointerId,
+      y: event.clientY, startY: event.clientY, offset: event.clientY - row.getBoundingClientRect().top,
+      scroll: row.closest('.users-content'), scrollStart: row.closest('.users-content').scrollTop, active: false, frame: 0};
+    handle.focus({preventScroll: true});
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  document.addEventListener('pointermove', event => {
+    const d = songDrag;
+    if (!d || event.pointerId !== d.pointer) return;
+    d.y = event.clientY;
+    if (!d.active && Math.abs(d.y - d.startY) < 5) return;
+    if (!d.active) {
+      d.active = true;
+      d.row.classList.add('is-dragging');
+      d.list.classList.add('is-sorting');
+      d.frame = requestAnimationFrame(scrollSongDrag);
+    }
+    positionSongDrag();
+    event.preventDefault();
+  }, {passive: false});
+  document.addEventListener('pointerup', event => { if (songDrag?.pointer === event.pointerId) finishSongDrag(true); });
+  for (const type of ['pointercancel', 'lostpointercapture']) document.addEventListener(type, event => {
+    if (songDrag?.pointer === event.pointerId) finishSongDrag(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && songDrag) { event.preventDefault(); finishSongDrag(false); return; }
+    const handle = event.target?.closest('.setlist-drag');
+    if (!handle || handle.disabled || busy || songDrag || !detail || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const id = handle.closest('[data-song]').dataset.song, ids = detail.songs.map(song => song.id);
+    const from = ids.indexOf(id), to = from + (event.key === 'ArrowUp' ? -1 : 1);
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    return patchSongs(ids, id);
+  }, true);
+  document.addEventListener('close', event => { if (event.target.id === 'setlists-dialog') finishSongDrag(false); }, true);
+  window.addEventListener('blur', () => finishSongDrag(false));
 
   async function turnOnLinks(button) {
     const off = detail.songs.filter(song => !song.shared);
@@ -166,7 +295,7 @@
     const action = event.target.closest('[data-setlist-delete],[data-setlist-copy],[data-setlist-rotate],[data-setlist-add],[data-setlist-remove],[data-setlist-move],[data-setlist-turn-on]');
     if (!action) return;
     if (action.matches('[data-setlist-delete]')) {
-      if (!confirm('Delete this setlist? This cannot be undone.')) return;
+      if (!await window.appConfirm('Delete this setlist?\n\nThis cannot be undone.', {ok: 'Delete', danger: true})) return;
       busy = true;
       try { await call(`/${encodeURIComponent(detail.id)}`, 'DELETE'); detail = null; showList(); }
       catch (error) { status(error.message, true); }
@@ -198,7 +327,7 @@
       const row = action.closest('[data-song]'), ids = detail.songs.map(song => song.id), index = ids.indexOf(row?.dataset.song), next = index + (action.dataset.setlistMove === 'up' ? -1 : 1);
       if (index < 0 || next < 0 || next >= ids.length) return;
       [ids[index], ids[next]] = [ids[next], ids[index]];
-      await patchSongs(ids);
+      await patchSongs(ids, row.dataset.song);
       return;
     }
     if (action.matches('[data-setlist-turn-on]')) await turnOnLinks(action);

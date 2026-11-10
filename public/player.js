@@ -1,5 +1,12 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id),api=window.studio.api,params=new URLSearchParams(location.search);
+// Embed mode is only for real share links; previews and owner sessions never become the compact player.
+const embedded=params.get('embed')==='1'&&params.has('share')&&!params.has('lesson')&&!params.has('preview');
+if(embedded){
+ document.body.classList.add('embed-player');
+ const open=$('embed-open');if(open){open.hidden=false;open.href='/view/'+encodeURIComponent(params.get('share'));}
+ for(const id of ['btn-print','btn-download','btn-more','toggle-hand-guide','back-library']){const element=$(id);if(element)element.hidden=true;}
+}
 // The same server-side catalog matcher supplies teacher and student artwork.
 const coverImage=$('player-cover');
 let coverIdentity='',coverGeneration=0,coverController=null,coverRetryTimer=null,coverRetries=0;
