@@ -152,7 +152,8 @@ const editor = fs.readFileSync('public/editor/app.js', 'utf8');
 
   // Desktop audio health: missing AudioWorklet is not proof of silence; alphaTab's fallback
   // synth can still play, so the context itself must be probed.
-  {
+  // The desktop app is not part of the public export, so this check runs only where it exists.
+  if (fs.existsSync('desktop/src-tauri/src/desktop.js')) {
     const desktop = fs.readFileSync('desktop/src-tauri/src/desktop.js', 'utf8');
     const source = desktop.slice(desktop.indexOf('  const waitFor ='), desktop.indexOf('  const copyCommand ='));
     const makeContext = (running, advance) => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {readFileSync, readdirSync} from 'node:fs';
+import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {handleApi} from './lib/lessons.mjs';
 
 globalThis.FixedLengthStream = class {
@@ -81,12 +81,15 @@ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM account_violations WHERE les
 assert.equal((await call('admin/lessons/song-takedown/share', {method: 'POST', headers: uploader, body: {}})).status, 403);
 console.log('PASS: report takedown survives link rotation and revokes every token.');
 
-// Desktop: switching accounts must drop the previous account's offline cache,
-// otherwise the next account can read the first account's library while offline.
-const serverSrc = readFileSync('desktop/src-tauri/src/server.rs', 'utf8');
-assert.match(serverSrc, /different account/i, 'session change clears the offline cache');
-assert.ok(serverSrc.includes('remove_dir_all(st.data_dir.join("cache"))'), 'cache directory is dropped on account change');
-const remember = serverSrc.slice(serverSrc.indexOf('fn remember_cookie'));
-assert.match(remember, /changed/, 'remember_cookie tracks session changes');
-assert.ok(remember.indexOf('remove_dir_all') !== -1, 'remember_cookie invalidates the cache');
-console.log('PASS: desktop offline cache is invalidated on account change.');
+// The desktop app is not part of the public export, so its checks run only where it exists.
+if (existsSync('desktop/src-tauri/src/server.rs')) {
+  // Desktop: switching accounts must drop the previous account's offline cache,
+  // otherwise the next account can read the first account's library while offline.
+  const serverSrc = readFileSync('desktop/src-tauri/src/server.rs', 'utf8');
+  assert.match(serverSrc, /different account/i, 'session change clears the offline cache');
+  assert.ok(serverSrc.includes('remove_dir_all(st.data_dir.join("cache"))'), 'cache directory is dropped on account change');
+  const remember = serverSrc.slice(serverSrc.indexOf('fn remember_cookie'));
+  assert.match(remember, /changed/, 'remember_cookie tracks session changes');
+  assert.ok(remember.indexOf('remove_dir_all') !== -1, 'remember_cookie invalidates the cache');
+  console.log('PASS: desktop offline cache is invalidated on account change.');
+} else console.log('SKIP: desktop app not present');
