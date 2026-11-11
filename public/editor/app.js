@@ -1281,6 +1281,9 @@
         }
         const bytes=new Uint8Array(await(await cloudApi(base+'/file')).arrayBuffer());studentFile={bytes,name:lesson.file_name||lesson.title+'.'+lesson.format};await importCloud(bytes,studentFile.name,lesson);
         if(!score)throw Error('The file could not be opened. Ask the owner to replace the file.');
+        // Count the open once the score actually loaded. Previews use the admin path, so only
+        // real share links (including embeds and setlist songs) reach this endpoint.
+        if(shareToken)fetch(`/api/shared/${encodeURIComponent(shareToken)}/view`,{method:'POST',credentials:'same-origin'}).catch(error=>console.error('Could not record view:',error));
         $('tab-file-title').textContent=lesson.title;document.title=lesson.title+' — Shared player';
       }else{
         const session=await(await cloudApi('session')).json(),id=query.get('lesson');

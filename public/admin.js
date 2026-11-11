@@ -17,6 +17,14 @@
   });
 
   let lessons = [];
+  let viewStats = {};
+  async function loadViewStats() {
+    try {
+      const result = await api('admin/stats');
+      viewStats = {};
+      for (const entry of result.stats || []) viewStats[entry.lesson_id] = entry;
+    } catch { viewStats = {}; }
+  }
   let filter = 'overview';
   let selected = null;
   const localCloudSaves = new Set();
@@ -388,7 +396,9 @@
     const shared = lessons.filter(lesson => lesson.shared).sort((a, b) => String(a.title).localeCompare(String(b.title)));
     $('link-table').innerHTML = shared.length ? shared.slice(0, 8).map(lesson => {
       const access = accessSummary(lesson);
-      return `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></div><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
+      const stats = viewStats[lesson.id], total = Number(lesson.view_count) || 0;
+      const statsLine = total ? `${plural(total, 'view')} · ${Number(stats?.views_7) || 0} in the last 7 days · last viewed ${ago(lesson.last_viewed_at)}` : 'No views yet';
+      return `<div class="link-row"><div class="link-song" role="button" tabindex="0" data-open-song="${esc(lesson.id)}">${coverHtml(lesson, 'link-cover')}<span><strong>${esc(lesson.title || 'Untitled song')}</strong><small>${esc(lesson.artist || lesson.file_name || '')}</small></span></div><div class="link-access"><span>${esc(access.text)}</span><span class="chips">${access.extras.map(name => `<span class="chip">${esc(name)}</span>`).join('')}</span><span class="link-stats">${esc(statsLine)}</span></div><span class="link-buttons"><button class="icon-button" type="button" data-copy-link="${esc(lesson.id)}" aria-label="Copy link to ${esc(lesson.title)}" title="Copy link"><svg class="icon"><use href="#i-copy"/></svg></button><button class="icon-button" type="button" data-share-song="${esc(lesson.id)}" aria-label="Sharing settings for ${esc(lesson.title)}" title="Sharing settings"><svg class="icon"><use href="#i-sliders"/></svg></button></span></div>`;
     }).join('') + (shared.length > 8 ? `<button class="text-button more-links" type="button" data-goto-filter="shared">${shared.length - 8} more shared songs</button>` : '')
       : '<p class="panel-empty">Nothing shared yet.</p>';
     renderLocalSongs();
@@ -560,7 +570,7 @@
       return `<div class="lesson-row${active ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(lesson.id)}" aria-pressed="${active}">
         ${coverHtml(lesson, 'song-mark')}
         <span class="song-copy"><strong class="song-title">${title}</strong><span class="song-artist">${artist}</span></span>
-        <span class="song-meta">${lesson.shared ? '<svg class="icon shared-icon" role="img" aria-label="Shared"><use href="#i-link"/></svg>' : ''}${tracks} ${tracks === 1 ? 'track' : 'tracks'}</span>
+        <span class="song-meta">${lesson.shared ? '<svg class="icon shared-icon" role="img" aria-label="Shared"><use href="#i-link"/></svg>' : ''}${tracks} ${tracks === 1 ? 'track' : 'tracks'}${lesson.shared ? ` · ${esc(plural(Number(lesson.view_count) || 0, 'view'))}` : ''}</span>
         <svg class="icon row-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
       </div>`;
     }).join('') + localShown.map(song => `<div class="lesson-row local-row${librarySelectedId === `local:${song.id}` ? ' selected' : ''}" role="button" tabindex="0" data-id="local:${esc(song.id)}" aria-pressed="${librarySelectedId === `local:${song.id}`}">
@@ -714,6 +724,7 @@
       renderAccountBanners();
       const result = await api('admin/lessons');
       lessons = Array.isArray(result.lessons) ? result.lessons : [];
+      await loadViewStats();
       if (!librarySong(librarySelectedId)) librarySelectedId = lessons[0]?.id || null;
       render();
     } catch (error) {
@@ -738,6 +749,7 @@
     try {
       const result = await api('admin/lessons');
       lessons = Array.isArray(result.lessons) ? result.lessons : [];
+      await loadViewStats();
       if (!librarySong(librarySelectedId)) librarySelectedId = lessons[0]?.id || null;
       $('retry-library').hidden = true;
       render();

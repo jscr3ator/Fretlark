@@ -16,7 +16,7 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
  if(algorithm.name==='PBKDF2')assert.ok(algorithm.iterations<=100000,'Workers PBKDF2 iteration limit exceeded');
  return deriveBits(algorithm,...args);
 };
-const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));sql.exec(readFileSync('drizzle/0012_song_reports.sql','utf8'));sql.exec(readFileSync('drizzle/0013_account_violations.sql','utf8'));
+const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));sql.exec(readFileSync('drizzle/0012_song_reports.sql','utf8'));sql.exec(readFileSync('drizzle/0013_account_violations.sql','utf8'));sql.exec(readFileSync('drizzle/0014_setlists.sql','utf8'));sql.exec(readFileSync('drizzle/0015_view_visitors.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
 const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
@@ -55,7 +55,7 @@ try{
  assert.equal((await call('admin/artwork?title=Lantern%20Road&artist=Fretlark')).status,503);
 }finally{globalThis.fetch=originalFetch;}
 assert.equal((await call(`shared/${token}`,{headers:{},method:'POST',body:{title:'Hacked'}})).status,405);
-assert.equal((await call('admin/stats')).status,404,'Open tracking was removed');
+assert.deepEqual((await call('admin/stats')).data,{stats:[]},'No views recorded yet');
 assert.equal((await call(`shared/${token}/file`,{headers:{},raw:true})).data.length,Buffer.from(referenceScore,'base64').length);
 assert.equal((await call(`admin/lessons/${lesson.id}`,{method:'PATCH',body:{version:1,title:'Stale'}})).status,409);
 lesson=(await call(`admin/lessons/${lesson.id}`,{method:'PATCH',body:{version:lesson.version,title:'Chorus practice',artist:'Fretlark',notes:'Start slowly.'}})).data;
@@ -68,6 +68,54 @@ lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'DELETE'})).data;a
 // Turning sharing back on reopens the same link; only "Reset link" (rotate) makes a new one.
 lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{}})).data;assert.equal(lesson.share_token,token);assert.equal((await call(`shared/${token}`,{headers:{}})).status,200);
 assert.equal((await call(`admin/lessons/${lesson.id}`,{method:'DELETE'})).status,200);assert.equal(objects.size,0);assert.equal((await call('admin/lessons')).data.lessons.length,0);
+// View counts: only a real audience open counts, at most once per visitor per UTC day.
+// Metadata GETs, the owner's own opens, bots and revoked links record nothing.
+{
+ const view=(t,headers={})=>call(`shared/${t}/view`,{method:'POST',headers:{'user-agent':'Mozilla/5.0','cf-connecting-ip':'203.0.113.7',...headers}});
+ let song=(await call('admin/lessons',{method:'POST',body:upload(0,'Counted Song')})).data;
+ assert.equal(song.view_count,0);assert.equal(song.last_viewed_at,null);
+ song=(await call(`admin/lessons/${song.id}/share`,{method:'POST',body:{}})).data;
+ const t=song.share_token,reads=()=>sql.prepare('SELECT view_count,last_viewed_at FROM lessons WHERE id=?').get(song.id);
+ assert.equal((await call(`shared/${t}`,{headers:{}})).status,200);
+ assert.equal((await call(`shared/${t}`,{headers:{}})).status,200);
+ assert.equal(reads().view_count,0,'Metadata GETs never count');
+ assert.deepEqual((await view(t)).data,{ok:true});
+ assert.equal(reads().view_count,1);assert.ok(reads().last_viewed_at);
+ assert.equal(sql.prepare('SELECT views FROM lesson_views WHERE lesson_id=?').get(song.id).views,1);
+ assert.equal((await view(t)).data.ok,true,'Repeat call succeeds');
+ assert.equal(reads().view_count,1,'Same visitor same day does not count twice');
+ assert.equal((await view(t,{'cf-connecting-ip':'203.0.113.8'})).data.ok,true);
+ assert.equal(reads().view_count,2,'A different visitor counts');
+ assert.equal((await view(t,{'cf-connecting-ip':'203.0.113.9','user-agent':'Googlebot/2.1 (+http://www.google.com/bot.html)'})).status,200);
+ assert.equal(reads().view_count,2,'Bots do not count');
+ assert.equal((await view(t,{'cf-connecting-ip':'203.0.113.10',...teacher})).status,200);
+ assert.equal(reads().view_count,2,'The owner never counts their own song');
+ assert.equal((await view(t,{'cf-connecting-ip':'203.0.113.11','user-agent':'Slackbot-LinkExpanding 1.0'})).status,200);
+ assert.equal(reads().view_count,2,'Link preview crawlers do not count');
+ assert.equal((await call(`shared/${t}/view`,{method:'GET',headers:{'cf-connecting-ip':'203.0.113.11'}})).status,404);
+ assert.equal(reads().view_count,2,'GET never records a view');
+ const other=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.99'},body:{email:'statowner',password:'statowner strong password'}});
+ const otherTeacher={cookie:other.cookie.split(';')[0]};
+ let otherSong=(await call('admin/lessons',{method:'POST',headers:otherTeacher,body:upload(0,'Other Song')})).data;
+ otherSong=(await call(`admin/lessons/${otherSong.id}/share`,{method:'POST',headers:otherTeacher,body:{}})).data;
+ assert.equal((await view(otherSong.share_token,{'cf-connecting-ip':'203.0.113.50'})).status,200);
+ const listed=(await call('admin/lessons')).data.lessons.find(row=>row.id===song.id);
+ assert.equal(listed.view_count,2);assert.ok(listed.last_viewed_at,'The admin list carries totals');
+ const stats=(await call('admin/stats')).data;
+ assert.equal(stats.stats.length,1);assert.equal(stats.stats[0].lesson_id,song.id);
+ assert.equal(stats.stats[0].views_7,2);assert.equal(stats.stats[0].views_30,2);
+ const otherStats=(await call('admin/stats',{headers:otherTeacher})).data;
+ assert.equal(otherStats.stats.length,1);assert.equal(otherStats.stats[0].lesson_id,otherSong.id);
+ assert.equal((await call('admin/stats',{headers:{}})).status,403,'Stats require sign-in');
+ song=(await call(`admin/lessons/${song.id}/share`,{method:'DELETE'})).data;
+ assert.equal((await view(t,{'cf-connecting-ip':'203.0.113.60'})).status,404);
+ assert.equal(reads().view_count,2,'Revoked links record nothing');
+ assert.equal((await call(`admin/lessons/${song.id}`,{method:'DELETE'})).status,200);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM lesson_views WHERE lesson_id=?').get(song.id).n,0);
+ assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM lesson_view_visitors WHERE lesson_id=?').get(song.id).n,0,'Deleting a song removes its view rows');
+ assert.equal((await call(`admin/lessons/${otherSong.id}`,{method:'DELETE',headers:otherTeacher})).status,200);
+ console.log('PASS: accurate per-visitor daily view counts, bot/owner/revoked exclusions, per-owner stats and cleanup.');
+}
 const rawBytes=new Uint8Array([1,2,3,4]);
 const rawHeaders={...teacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:rawBytes.length,title:'Streamed'}))};
 let streamed=await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:rawHeaders,body:rawBytes}),env);
