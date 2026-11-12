@@ -1152,7 +1152,7 @@
     }
     try{
       const mod=await import('./hifi-player.js');
-      const adapter=await mod.createHifiPlayer({api,at,soundFontUrl:new URL('./vendor/soundfont/'+soundBank,location.href).href,processorUrl:new URL('./vendor/spessasynth/spessasynth_processor.min.js',location.href).href});
+      const adapter=await mod.createHifiPlayer({api,at,soundFontUrl:new URL('./vendor/soundfont/'+soundBank,location.href).href,quickSoundFontUrl:compactAudio?null:new URL('./vendor/soundfont/sonivox.sf3',location.href).href,processorUrl:new URL('./vendor/spessasynth/spessasynth_processor.min.js',location.href).href});
       hifi=adapter;api.hifi=adapter;hifiPending=false;
       adapter.onReady=updatePlayReady;
       hookHifiVolumes();

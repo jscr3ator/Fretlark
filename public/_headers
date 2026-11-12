@@ -21,3 +21,6 @@
 /editor/video-convert-worker.js
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: credentialless
+
+/editor/vendor/soundfont/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

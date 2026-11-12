@@ -400,14 +400,23 @@ function scheduleCountInClick(context, when, accented, volume) {
  * Create a SpessaSynth-backed player and adapt it to alphaTab's IExternalMediaHandler.
  * Rejects when the browser cannot run AudioWorklet audio.
  */
-export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, onReady } = {}) {
+export async function createHifiPlayer({ api, at, soundFontUrl, quickSoundFontUrl, processorUrl, onReady } = {}) {
   const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (typeof AudioWorkletNode === 'undefined' || !AudioContextClass) throw Error('AudioWorklet audio is unavailable');
   if (!api || !at) throw Error('Hi-fi player needs alphaTab');
 
   const context = new AudioContextClass({ latencyHint: 'playback' });
   const processor = processorUrl || new URL('./vendor/spessasynth/spessasynth_processor.min.js', import.meta.url).href;
-  let synth, WorkletSynthesizer, Sequencer, BasicMIDI, soundBankBytes;
+  let synth, WorkletSynthesizer, Sequencer, BasicMIDI, soundBankBytes, upgradeBank = null;
+  // Start the sound bank download at once, alongside the worklet and library setup. When a small
+  // quick-start bank is given, play can start with it and the full bank replaces it once it lands.
+  const fetchBank = url => fetch(url).then(response => {
+    if (!response.ok) throw Error(`Sound bank could not be loaded (${response.status})`);
+    return response.arrayBuffer();
+  });
+  const fullBank = fetchBank(soundFontUrl);
+  fullBank.catch(() => {});
+  const quickBank = quickSoundFontUrl ? fetchBank(quickSoundFontUrl).catch(() => null) : null;
   try {
     await context.audioWorklet.addModule(processor);
     const module = await import('./vendor/spessasynth/spessasynth_lib.js');
@@ -418,9 +427,18 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     guardSynthMessages(synth);
     synth.connect(createOutputStage(context));
 
-    const response = await fetch(soundFontUrl);
-    if (!response.ok) throw Error(`Sound bank could not be loaded (${response.status})`);
-    const bank = await response.arrayBuffer();
+    let bank;
+    if (quickBank) {
+      // Whichever lands first: a cached full bank wins at once, on a first visit the small one does.
+      const first = await Promise.race([
+        fullBank.then(bytes => ({ bytes, full: true }), () => ({ bytes: null, full: true })),
+        quickBank.then(bytes => ({ bytes, full: false }))
+      ]);
+      if (first.full) bank = first.bytes || await quickBank;
+      else if (first.bytes) { bank = first.bytes; upgradeBank = fullBank; }
+      else bank = await fullBank;
+      if (!bank) throw Error('Sound bank could not be loaded');
+    } else bank = await fullBank;
     // addSoundBank transfers the buffer to the worklet, so keep a copy for offline renders.
     soundBankBytes = bank.slice(0);
     await synth.soundBankManager.addSoundBank(bank, 'fretlark');
@@ -728,6 +746,27 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     try { api.player.output.updatePosition(endMs); } catch {}
   }
 
+  // The full bank replaces the quick-start one only while nothing is sounding; during playback it
+  // waits for the next pause. Reloading the MIDI re-applies every channel's instrument in place.
+  // A copy of the full bank for offline renders, taken before addSoundBank transfers the bytes.
+  const upgradedCopy = upgradeBank ? upgradeBank.then(bytes => (bytes ? bytes.slice(0) : null), () => null) : null;
+  function applyBank(bytes) {
+    if (state.destroyed || !bytes) return;
+    synth.soundBankManager.addSoundBank(bytes, 'fretlark').then(async () => {
+      if (state.destroyed) return;
+      const copy = await upgradedCopy;
+      if (copy) state.soundBankBytes = copy;
+      if (!state.score && !state.songReady) return;
+      if (state.songReady) state.pendingSeekSeconds = Math.max(0, Number(state.seekSeconds) || 0);
+      reloadMidi();
+    }).catch(error => console.warn('Fretlark could not switch to the full sound bank.', error));
+  }
+  if (upgradeBank) upgradeBank.then(bytes => {
+    if (!bytes || state.destroyed) return;
+    if (state.playing || state.countingIn) state.pendingBank = bytes;
+    else applyBank(bytes);
+  }).catch(() => {});
+
   sequencer.eventHandler.addEvent('songChange', 'fretlark-song', onSongChange);
   sequencer.eventHandler.addEvent('songEnded', 'fretlark-end', onSongEnded);
 
@@ -735,6 +774,8 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
     const OfflineContext = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
     if (!OfflineContext) throw Error('Offline audio rendering is unavailable in this browser.');
     if (state.destroyed || !state.soundBankBytes) throw Error('Hi-fi audio is not ready.');
+    // An export never uses the quick-start bank: wait for the full one if it is still on its way.
+    if (upgradedCopy) { const copy = await upgradedCopy; if (copy) state.soundBankBytes = copy; }
 
     // The exported file uses the same score MIDI as playback, but never the metronome click track.
     const rendered = renderSong(false);
@@ -918,6 +959,7 @@ export async function createHifiPlayer({ api, at, soundFontUrl, processorUrl, on
       if (state.songReady) state.seekSeconds = Math.max(0, Number(sequencer.currentHighResolutionTime) || state.seekSeconds);
       try { if (!sequencer.paused) sequencer.pause(); } catch {}
       emitBackingPosition();
+      if (state.pendingBank) { const bytes = state.pendingBank; state.pendingBank = null; applyBank(bytes); }
     }
   };
 
