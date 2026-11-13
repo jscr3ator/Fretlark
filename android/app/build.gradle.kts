@@ -29,7 +29,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = (secret("FRETLARK_VERSION_CODE") ?: "1").toInt()
-        versionName = "1.1.0"
+        versionName = "1.1.1"
         buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
         manifestPlaceholders["siteHost"] = siteHost
         // Plain http is only allowed when the app is built against a local dev server.
