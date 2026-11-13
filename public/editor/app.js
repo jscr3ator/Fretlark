@@ -940,14 +940,14 @@
   function togglePanel(name){
     if(isViewer&&name!=='mixer')return;
     document.body.classList.remove('focus-score');activate('btn-focus',false);
-    if(name==='palette'&&innerWidth<=760){document.body.classList.toggle('show-palette');document.body.classList.remove('show-inspector');}
-    else if(name==='inspector'&&innerWidth<=1020){document.body.classList.toggle('show-inspector');document.body.classList.remove('show-palette');}
+    if(name==='palette'&&touchEditorEnabled()){document.body.classList.toggle('show-palette');document.body.classList.remove('show-inspector');}
+    else if(name==='inspector'&&(touchEditorEnabled()||innerWidth<=1020)){document.body.classList.toggle('show-inspector');document.body.classList.remove('show-palette');}
     else document.body.classList.toggle('hide-'+name);
     updatePanelButtons();
   }
   function updatePanelButtons(){
-    activate('btn-toggle-palette',innerWidth<=760?document.body.classList.contains('show-palette'):!document.body.classList.contains('hide-palette'));
-    activate('btn-toggle-inspector',innerWidth<=1020?document.body.classList.contains('show-inspector'):!document.body.classList.contains('hide-inspector'));
+    activate('btn-toggle-palette',touchEditorEnabled()?document.body.classList.contains('show-palette'):!document.body.classList.contains('hide-palette'));
+    activate('btn-toggle-inspector',(touchEditorEnabled()||innerWidth<=1020)?document.body.classList.contains('show-inspector'):!document.body.classList.contains('hide-inspector'));
     activate('btn-toggle-mixer',!document.body.classList.contains('hide-mixer'));
   }
   listen('btn-toggle-palette','click',()=>togglePanel('palette'));
@@ -964,9 +964,18 @@
   }).observe($('score-scroll'));
   const dockResizer=$('dock-resizer');
   let lastTouchMode=touchEditorEnabled();
-  if(lastTouchMode)document.querySelector('.track-dock')?.classList.add('dock-collapsed');
+  if(lastTouchMode){document.querySelector('.track-dock')?.classList.add('dock-collapsed');document.body.classList.add('hide-mixer');}
   document.querySelector('.track-dock')?.classList.toggle('mobile-dock',lastTouchMode);
-  window.addEventListener('resize',()=>{const now=touchEditorEnabled(),dock=document.querySelector('.track-dock');if(now!==lastTouchMode){dock?.classList.toggle('mobile-dock',now);if(now){dock?.classList.add('dock-collapsed');document.documentElement.style.setProperty('--dock-height','48px');}else{dock?.classList.remove('dock-collapsed');document.documentElement.style.removeProperty('--dock-height');}$('btn-collapse-dock')?.setAttribute('aria-expanded',String(!now));lastTouchMode=now;}syncTouchEntry();});
+  window.addEventListener('resize',()=>{const now=touchEditorEnabled(),dock=document.querySelector('.track-dock');if(now!==lastTouchMode){dock?.classList.toggle('mobile-dock',now);if(now){dock?.classList.add('dock-collapsed');document.documentElement.style.setProperty('--dock-height','48px');document.body.classList.add('hide-mixer');}else{dock?.classList.remove('dock-collapsed');document.documentElement.style.removeProperty('--dock-height');document.body.classList.remove('hide-mixer');}$('btn-collapse-dock')?.setAttribute('aria-expanded',String(!now));lastTouchMode=now;}syncTouchEntry();});
+  listen('btn-close-mixer','click',()=>{document.body.classList.add('hide-mixer');updatePanelButtons();});
+  // On a phone the palette, inspector and mixer are sheets: tapping the dimmed page closes them.
+  document.addEventListener('click',e=>{
+    if(!touchEditorEnabled())return;
+    const sheetOpen=document.body.classList.contains('show-palette')||document.body.classList.contains('show-inspector')||!document.body.classList.contains('hide-mixer');
+    if(!sheetOpen)return;
+    if(e.target.closest('.palette,.inspector,.track-dock,dialog,#btn-toggle-palette,#btn-toggle-inspector,#btn-toggle-mixer,#btn-close-mixer,[data-click="btn-toggle-palette"],[data-click="btn-toggle-inspector"],[data-click="btn-toggle-mixer"]'))return;
+    document.body.classList.add('hide-mixer');document.body.classList.remove('show-palette','show-inspector');updatePanelButtons();
+  });
   $('touch-entry')?.addEventListener('click',e=>{
     const key=e.target.closest('[data-fret-key]');if(key){if(key.dataset.fretKey==='Backspace')$('btn-delete-note').click();else if(key.dataset.fretKey==='X')document.querySelector('[data-effect="isDead"]')?.click();else enterFretDigit(key.dataset.fretKey,24);return;}
     const action=e.target.closest('[data-touch]')?.dataset.touch;if(!action)return;
