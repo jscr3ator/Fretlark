@@ -270,7 +270,11 @@ for(let i=0;i<11;i++) var limited=await call('auth/login',{method:'POST',headers
 assert.equal(limited.status,429);
 // Scheduled snapshots must restore accounts and every referenced score; partial copies have no manifest.
 const copies=new Map();
-const backupEnv={...env,BACKUP_BUCKET:{async put(key,body){copies.set(key,Buffer.from(await new Response(body).arrayBuffer()));}}};
+const backupEnv={...env,BACKUP_BUCKET:{
+ async put(key,body){copies.set(key,Buffer.from(await new Response(body).arrayBuffer()));},
+ async get(key){const bytes=copies.get(key);return bytes?{size:bytes.length,body:bytes,async text(){return bytes.toString();}}:null;},
+ async delete(keys){for(const key of [].concat(keys))copies.delete(key);},
+ async list({prefix}){return {objects:[...copies].filter(([key])=>key.startsWith(prefix)).map(([key,bytes])=>({key,size:bytes.length,uploaded:new Date()})),truncated:false};}}};
 const saved=await backupLibrary(backupEnv);
 const snapshot=JSON.parse(copies.get(saved.snapshot+'/manifest.json'));
 assert.equal('teacher_sessions' in snapshot,false,'Restores must not restore live sessions');

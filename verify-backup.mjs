@@ -3,16 +3,27 @@ import {randomBytes,createHash} from 'node:crypto';
 import {validateBackup,encryptBackup,decryptBackup} from './scripts/backup.mjs';
 import {backupLibrary} from './lib/library-backup.mjs';
 
-// Count each SQL statement conservatively, plus every R2 read/write, against the hosted Free limit.
-function scheduledFixture(scores,teachers=1) {
- const previous='snapshots/previous/manifest.json',objects=new Map([[previous,'previous snapshot']]);
- let calls=0,reads=0;
- const count=()=>{assert.ok(++calls<=1000,'Scheduled backup exceeded Free Workers internal subrequest budget');};
- const env={DB:{prepare(query){return query;},async batch(queries){
-  queries.forEach(count);
-  return queries.map(query=>({results:query.includes('sqlite_master')?[]:Array.from({length:Math.min(query.includes('teachers')?teachers:scores,Number(query.match(/LIMIT (\d+)/)?.[1]))},(_,i)=>query.includes('teachers')?{id:'teacher-'+i}:{file_key:'scores/'+i,file_size:bytes.length})}));
- }},BUCKET:{async get(){count();reads++;return {size:bytes.length,body:bytes};}},BACKUP_BUCKET:{async put(key,body){count();objects.set(key,body);}}};
- return {env,objects,previous,get calls(){return calls;},get reads(){return reads;}};
+// A fake D1 + two R2 buckets that count every internal request against the Paid plan budget.
+function scheduledFixture(scores,{teachers=1,missing=[],deleteMissing=true}={}) {
+ const db={teachers:Array.from({length:teachers},(_,i)=>({id:'teacher-'+i})),
+  lessons:Array.from({length:scores},(_,i)=>({id:'lesson-'+i,file_key:'scores/'+i,file_size:bytes.length})),
+  setlists:[{id:'set-0',owner_id:'teacher-0'}],setlist_items:Array.from({length:Math.min(scores,3)},(_,i)=>({setlist_id:'set-0',lesson_id:'lesson-'+i,position:i}))};
+ let calls=0,reads=0,clock=new Date('2026-11-01T11:00:00Z');
+ const count=()=>{assert.ok(++calls<=10000,'Scheduled backup exceeded the Paid Workers internal request budget');};
+ const statement=query=>({query,args:[],bind(...args){this.args=args;return this;},async all(){count();return run(query);},async first(){count();return query.includes('SELECT 1')?(db.lessons.some(row=>row.id===this.args[0]&&row.file_key===this.args[1])?{n:1}:null):null;}});
+ const run=query=>{
+  if(query.includes("type='table'"))return {results:Object.keys(db).map(name=>({name}))};
+  if(query.includes('sqlite_master'))return {results:[{sql:'CREATE TABLE teachers (id TEXT PRIMARY KEY)'}]};
+  const table=query.match(/FROM (\w+)/)[1];return {results:db[table].map(row=>({...row}))};
+ };
+ const bucket=()=>{const objects=new Map();return {objects,
+  async put(key,body){count();objects.set(key,{body:typeof body==='string'?body:bytes,size:typeof body==='string'?body.length:bytes.length,uploaded:new Date(clock)});},
+  async get(key){count();const o=objects.get(key);return o?{size:o.size,body:o.body,async text(){return String(o.body);}}:null;},
+  async delete(keys){count();for(const key of [].concat(keys))objects.delete(key);},
+  async list({prefix,cursor}){count();const all=[...objects.entries()].filter(([key])=>key.startsWith(prefix)).map(([key,o])=>({key,size:o.size,uploaded:o.uploaded}));const start=Number(cursor||0),page=all.slice(start,start+1000);return {objects:page,truncated:start+1000<all.length,cursor:String(start+1000)};}};};
+ const backup=bucket(),files={async get(key){count();reads++;if(missing.includes(key)){if(deleteMissing)db.lessons=db.lessons.filter(row=>row.file_key!==key);return null;}return {size:bytes.length,body:bytes};}};
+ const env={DB:{prepare:statement,async batch(list){return Promise.all(list.map(item=>item.all()));}},BUCKET:files,BACKUP_BUCKET:backup};
+ return {env,db,backup:backup.objects,run:()=>backupLibrary(env,new Date(clock)),advance(days){clock=new Date(clock.getTime()+days*864e5);},resetCalls(){calls=0;},get calls(){return calls;},get reads(){return reads;}};
 }
 
 const bytes=Buffer.from('score fixture');
@@ -33,15 +44,45 @@ assert.throws(()=>decryptBackup(tampered,key));
 assert.throws(()=>validateBackup({...bundle,objects:[]}),/missing/);
 assert.throws(()=>validateBackup({...bundle,objects:[{...bundle.objects[0],sha256:'bad'}]}),/checksum/);
 assert.throws(()=>validateBackup({...bundle,sql:bundle.sql+"DELETE FROM teachers;"}),/foreign-key/);
-const boundary=scheduledFixture(400);
-const completed=await backupLibrary(boundary.env);
-assert.equal(completed.scores,400);
-assert.equal(boundary.calls,804);
-assert.equal(boundary.objects.size,402,'400 copies, new manifest and earlier snapshot survive');
-assert.ok([...boundary.objects.keys()].at(-1).endsWith('/manifest.json'),'Complete manifest publishes last');
-for(const fixture of [scheduledFixture(401),scheduledFixture(1,1001)]) {
- await assert.rejects(()=>backupLibrary(fixture.env),/Backup capacity exceeded/);
- assert.equal(fixture.reads,0,'Over-capacity backup fails before copying any score');
- assert.deepEqual([...fixture.objects],[[fixture.previous,'previous snapshot']],'Earlier snapshot unchanged; no incomplete writes');
-}
-console.log('PASS: encrypted backup roundtrip, tamper rejection, restored SQL and referenced score integrity; scheduled backup boundary and Free subrequest budget.');
+// Large libraries back up with no song cap; only new songs are copied after the first run.
+const big=scheduledFixture(1500);
+const first=await big.run();
+assert.equal(first.scores,1500);assert.equal(first.copied,1500);assert.equal(first.setlists,1);
+const keys=[...big.backup.keys()];
+assert.ok(keys.at(-1).endsWith('/manifest.json'),'Complete manifest publishes last');
+assert.equal(keys.filter(key=>key.startsWith('files/')).length,1500,'One stored copy per song');
+const manifest=JSON.parse(big.backup.get(keys.at(-1)).body);
+assert.equal(manifest.files[0].backup_key,'files/scores/0');assert.equal(manifest.setlist_items.length,3);
+big.advance(1);big.resetCalls();
+const second=await big.run();
+assert.equal(second.copied,0,'Unchanged songs are not copied again');
+assert.ok(big.calls<20,'A day with no new songs costs a handful of internal requests');
+
+// A deleted song's copy stays while a recent snapshot needs it, then is cleaned up.
+big.db.lessons=big.db.lessons.filter(lesson=>lesson.id!=='lesson-1499');
+big.advance(3);assert.equal((await big.run()).removed,0,'Still referenced by recent snapshots');
+big.advance(40);const late=await big.run();
+assert.equal(late.removed,1,'Copy no snapshot in the retention window uses is removed');
+assert.ok(!big.backup.has('files/scores/1499'));
+
+// A file missing for a song that still exists is a storage fault: nothing is published.
+const broken=scheduledFixture(5,{missing:['scores/2'],deleteMissing:false});
+await assert.rejects(()=>broken.run(),/missing/);
+assert.ok(![...broken.backup.keys()].some(key=>key.endsWith('manifest.json')),'No snapshot with a missing song');
+
+// A song deleted mid-backup is left out, together with its setlist entries.
+const gone=scheduledFixture(5,{missing:['scores/1']});
+const partialSet=await gone.run();
+assert.equal(partialSet.scores,4);assert.equal(partialSet.skipped,1);
+const goneManifest=JSON.parse([...gone.backup.values()].at(-1).body);
+assert.ok(!goneManifest.setlist_items.some(item=>item.lesson_id==='lesson-1'),'No setlist entry points at a missing song');
+
+// More new songs than one run may copy: progress is kept, no snapshot is published until complete.
+const flood=scheduledFixture(4100);
+const firstPass=await flood.run();
+assert.equal(firstPass.partial,true);
+assert.ok(![...flood.backup.keys()].some(key=>key.endsWith('manifest.json')),'No snapshot with missing songs');
+flood.advance(1);const caughtUp=await flood.run();
+assert.equal(caughtUp.copied,100);assert.equal(caughtUp.scores,4100);
+
+console.log('PASS: encrypted backup roundtrip, tamper rejection, restored SQL and referenced score integrity; incremental scheduled backups (no song cap, copy-once, cleanup, mid-run deletes, multi-run catch-up) within the Paid request budget.');

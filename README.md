@@ -22,6 +22,13 @@ Write, play and share guitar tabs in your browser. View the Public Version [here
 - Runs on your own machine, any Docker host, or Cloudflare.
 - Songs can stay only on your device, never uploaded.
 
+## Mobile app
+
+Fretlark for Android keeps your songs, setlists and share links on your phone, and opens GP files straight from other apps. iOS is coming soon.
+
+- **Download:** [fretlark-android.apk](https://fretlark.com/downloads/fretlark-android.apk) (Android 8+), or the APK in [`public/downloads/`](public/downloads/).
+- **Build it yourself:** the source is in [`android/`](android/) (Kotlin and Jetpack Compose). See [android/README.md](android/README.md); `-PsiteUrl=https://your-server` points it at your own self-hosted Fretlark.
+
 ## Features
 
 <table>

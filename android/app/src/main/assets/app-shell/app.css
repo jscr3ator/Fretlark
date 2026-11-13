@@ -1,0 +1,460 @@
+/* Fretlark for Android: styles the app adds on top of the website's own (see app.js). */
+
+/* ---------- every page: feel like an app, not a web page ---------- */
+html.fl-app{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none;touch-action:manipulation}
+html.fl-app body{overscroll-behavior:none;-webkit-touch-callout:none}
+html.fl-app button,html.fl-app a,html.fl-app label,html.fl-app summary,html.fl-app nav,html.fl-app header{-webkit-user-select:none;user-select:none}
+html.fl-app a,html.fl-app img{-webkit-user-drag:none}
+.fl-icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- printing ---------- */
+/* The print layout is drawn off screen, then becomes the only thing on the printed pages. */
+html.fl-app .fl-print-host{position:absolute;left:-100000px;top:0;background:#fff;color:#000}
+@media print{
+  html.fl-printing,html.fl-printing body{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
+  html.fl-printing body>*:not(.fl-print-host){display:none!important}
+  html.fl-printing .fl-print-host{position:static;left:auto}
+  html.fl-printing .fl-print-host .at-surface{width:auto!important;height:auto!important}
+  html.fl-printing .fl-print-host .at-surface>div{position:relative!important;left:auto!important;top:auto!important;break-inside:avoid}
+}
+
+/* ---------- dashboard on a phone ---------- */
+@media (max-width:767px){
+  html.fl-admin{--fl-bar:62px;--fl-gap:12px;--fl-clear:calc(var(--fl-bar) + var(--fl-gap) + 22px)}
+
+  /* The website's own bottom bar and header shortcuts: the tab bar replaces them. */
+  html.fl-admin .sidebar,html.fl-admin .mobile-actions,html.fl-admin .overview-actions{display:none}
+
+  /* Floating tab bar: one pill for the four places, one round button to create. */
+  html.fl-admin .fl-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;align-items:center;gap:10px;padding:0 14px var(--fl-gap);pointer-events:none;transition:transform .42s var(--ease),opacity .25s var(--ease)}
+  html.fl-admin .fl-tabbar::before{content:"";position:absolute;inset:-28px 0 0;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--bg) 92%,transparent) 62%);pointer-events:none}
+  html.fl-admin .fl-tabs{position:relative;display:grid;grid-template-columns:repeat(4,1fr);flex:1;min-width:0;height:var(--fl-bar);padding:5px;border-radius:999px;background:color-mix(in srgb,var(--surface) 86%,transparent);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 .5px var(--separator),0 10px 30px rgba(0,0,0,.12),0 2px 6px rgba(0,0,0,.05);pointer-events:auto}
+  html.fl-admin .fl-tab-pill{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / 4);border-radius:999px;background:var(--fill);transform:translateX(calc(var(--fl-index,0) * 100%));transition:transform .46s var(--spring,var(--ease))}
+  html.fl-admin .fl-tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:0;border:0;border-radius:999px;background:transparent;color:var(--label-2);font:inherit;font-size:10.5px;font-weight:600;letter-spacing:.005em;transition:color .25s var(--ease),transform .18s var(--ease)}
+  html.fl-admin .fl-tab:active{transform:scale(.92)}
+  html.fl-admin .fl-tab.active{color:var(--accent)}
+  html.fl-admin .fl-tab .fl-icon{width:23px;height:23px}
+  html.fl-admin .fl-tab.active .fl-icon{stroke-width:2.1}
+  html.fl-admin .fl-dot{position:absolute;top:9px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--danger,#d70015);box-shadow:0 0 0 2px var(--surface)}
+  html.fl-admin .fl-dot[hidden]{display:none}
+  html.fl-admin .fl-create{position:relative;display:grid;place-items:center;flex:none;width:var(--fl-bar);height:var(--fl-bar);padding:0;border:0;border-radius:50%;background:var(--accent);color:#fff;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 38%,transparent),0 2px 6px rgba(0,0,0,.12);pointer-events:auto;transition:transform .2s var(--ease)}
+  html.fl-admin .fl-create:active{transform:scale(.9)}
+  html.fl-admin .fl-create .fl-icon{width:26px;height:26px;stroke-width:2.2}
+  /* Out of the way while signed out, inside a song, or typing. */
+  html.fl-admin:not(.fl-signed-in) .fl-tabbar,html.fl-admin.fl-detail .fl-tabbar,html.fl-admin.fl-typing .fl-tabbar{transform:translateY(calc(100% + 40px));opacity:0}
+  html.fl-admin:not(.fl-signed-in) .fl-tabbar{display:none}
+
+  /* Room for the bar under each scrolling screen. */
+  html.fl-admin .overview{padding-bottom:0}
+  html.fl-admin .overview-inner{padding:18px 16px var(--fl-clear)}
+  html.fl-admin .library-browser{padding-bottom:0}
+  html.fl-admin .library-results{padding-bottom:var(--fl-clear)}
+  html.fl-admin .library-heading{padding:18px 16px 8px}
+  html.fl-admin .toast{bottom:calc(var(--fl-clear) + 4px)}
+  html.fl-admin.fl-detail .toast,html.fl-admin.fl-typing .toast{bottom:24px}
+  html.fl-admin .banner-stack{padding:10px 12px 0}
+  html.fl-admin .verify-banner{border-radius:18px;font-size:13px}
+
+  /* Screens change with a short lift instead of a hard cut. */
+  html.fl-admin .overview:not([hidden]),html.fl-admin .workspace-layout:not([hidden]){animation:fl-screen .34s var(--ease) both}
+  @keyframes fl-screen{from{opacity:0;transform:translateY(8px)}}
+
+  /* Library filters as chips under the search field. */
+  html.fl-admin .fl-chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;scrollbar-width:none}
+  html.fl-admin .fl-chips::-webkit-scrollbar{display:none}
+  html.fl-admin .fl-chip{display:inline-flex;align-items:center;gap:6px;flex:none;height:34px;padding:0 15px;border:0;border-radius:999px;background:var(--fill-2);color:var(--label);font:inherit;font-size:13.5px;font-weight:500;transition:background .25s var(--ease),color .25s var(--ease),transform .15s var(--ease)}
+  html.fl-admin .fl-chip:active{transform:scale(.95)}
+  html.fl-admin .fl-chip b{font-weight:500;font-size:12px;color:var(--label-3);font-variant-numeric:tabular-nums}
+  html.fl-admin .fl-chip b:empty{display:none}
+  html.fl-admin .fl-chip.active{background:var(--label);color:var(--bg)}
+  html.fl-admin .fl-chip.active b{color:inherit;opacity:.62}
+  html.fl-admin .library-title-row .result-count{display:none}
+
+  /* Press feedback on rows and cards. */
+  html.fl-admin .lesson-row{transition:background .2s var(--ease),transform .18s var(--ease)}
+  html.fl-admin .lesson-row.selected{background:transparent}
+  html.fl-admin .lesson-row.selected::after{opacity:1}
+  html.fl-admin .lesson-row:last-child::after{opacity:0}
+  html.fl-admin .lesson-row:active{transform:scale(.985);background:var(--fill-2)}
+  html.fl-admin .button:active,html.fl-admin .icon-button:active{transform:scale(.95)}
+
+  /* Setlists and Account: full tab pages instead of sheets. */
+  html.fl-admin dialog.fl-tab-page{position:fixed;inset:0;z-index:4;display:none;flex-direction:column;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;padding:0;border-radius:0;background:var(--bg);box-shadow:none;overflow:hidden}
+  html.fl-admin dialog.fl-tab-page[open]{display:flex;animation:fl-screen .34s var(--ease) both}
+  html.fl-admin dialog.fl-tab-page .settings-header{flex:none;align-items:flex-end;padding:18px 16px 12px;border-bottom:0}
+  html.fl-admin dialog.fl-tab-page .settings-header h2{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
+  html.fl-admin dialog.fl-tab-page .settings-header .field-hint{margin-top:4px;font-size:13.5px}
+  html.fl-admin dialog.fl-tab-page .settings-header .icon-button{display:none}
+  html.fl-admin dialog.fl-tab-page .settings-layout{display:block;flex:1;min-height:0;max-height:none;overflow:auto;padding-bottom:var(--fl-clear)}
+  html.fl-admin dialog.fl-tab-page .settings-nav{position:sticky;top:0;z-index:2;padding:6px 16px 10px;border-bottom:0;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  html.fl-admin dialog.fl-tab-page .settings-nav [role=tablist]{gap:6px}
+  html.fl-admin dialog.fl-tab-page .settings-nav button{height:34px;padding:0 14px;border-radius:999px;font-size:13.5px;background:var(--fill-2)}
+  html.fl-admin dialog.fl-tab-page .settings-nav button[aria-selected=true]{background:var(--label);color:var(--bg)}
+  html.fl-admin dialog.fl-tab-page .settings-content{margin:4px 16px 0;padding:6px 18px 18px;border:1px solid var(--separator);border-radius:18px;background:var(--surface)}
+  html.fl-admin dialog.fl-tab-page .users-content{flex:1;min-height:0;max-height:none;overflow:auto;padding:4px 16px var(--fl-clear)}
+
+  /* Create sheet. */
+  html.fl-admin dialog.fl-sheet{width:100vw;max-width:100vw;margin:auto 0 0;padding:10px 14px 18px;border:0;border-radius:26px 26px 0 0;background:var(--surface);color:var(--label)}
+  html.fl-admin .fl-sheet-grip{width:38px;height:5px;margin:0 auto 14px;border-radius:99px;background:var(--fill)}
+  html.fl-admin .fl-sheet h2{margin:0 6px 10px;font-size:22px;font-weight:700;letter-spacing:-.025em}
+  html.fl-admin .fl-action{display:flex;align-items:center;gap:14px;width:100%;padding:12px 8px;border:0;border-radius:16px;background:transparent;color:var(--label);font:inherit;text-align:left;transition:background .2s var(--ease),transform .15s var(--ease)}
+  html.fl-admin .fl-action:active{background:var(--fill-2);transform:scale(.985)}
+  html.fl-admin .fl-action-icon{display:grid;place-items:center;flex:none;width:46px;height:46px;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+  html.fl-admin .fl-action-copy{display:grid;gap:2px;flex:1;min-width:0}
+  html.fl-admin .fl-action-copy strong{font-size:16px;font-weight:600;letter-spacing:-.01em}
+  html.fl-admin .fl-action-copy small{font-size:13px;color:var(--label-2)}
+  html.fl-admin .fl-action>.fl-icon{width:18px;height:18px;color:var(--label-3)}
+
+  html.fl-admin .fl-share-button .fl-icon{width:16px;height:16px}
+}
+/* Wide screens (tablets, a phone on its side) keep the website's sidebar layout. */
+@media (min-width:768px){
+  html.fl-admin .fl-tabbar,html.fl-admin .fl-chips{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  html.fl-admin .fl-tabbar,html.fl-admin .fl-tab-pill,html.fl-admin .fl-tab{transition:none}
+  html.fl-admin .overview:not([hidden]),html.fl-admin .workspace-layout:not([hidden]),html.fl-admin dialog.fl-tab-page[open]{animation:none}
+}
+
+/* ---------- editor ---------- */
+html.fl-editor .fl-back{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;margin-left:-6px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit}
+html.fl-editor .fl-back .fl-icon{width:22px;height:22px;stroke-width:2.1}
+html.fl-editor .fl-back:active{opacity:.6}
+
+/* ---------- player ---------- */
+html.fl-player #back-library.fl-back{display:inline-grid;place-items:center;flex:none;width:38px;height:38px;margin:0 -4px 0 -6px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit}
+html.fl-player #back-library.fl-back[hidden]{display:none}
+html.fl-player #back-library.fl-back span{display:none}
+html.fl-player #back-library.fl-back svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+html.fl-player #back-library.fl-back:active{opacity:.6}
+html.fl-player.fl-framed #back-library.fl-back{display:none}
+
+/* ---------- shared setlist ---------- */
+html.fl-set .set-brand.fl-back{gap:1px;margin-left:-7px;font-size:15px;font-weight:500;color:var(--accent,#0071e3)}
+html.fl-set .set-brand.fl-back .fl-icon{width:20px;height:20px;stroke-width:2.2}
+html.fl-set .set-brand.fl-back:active{opacity:.6}
+
+/* Account page opened from the native app: nothing but the sheet. */
+html.fl-account-only body > *:not(dialog), html.fl-account-only #workspace > *:not(dialog) { visibility: hidden; }
+html.fl-account-only dialog { visibility: visible; }
+
+/* The player's practice row scrolls sideways on a phone: fade the right edge so that reads. */
+@media (max-width: 767px) {
+  html.fl-app .practice-toolbar { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+  html.fl-app .practice-toolbar-inner { padding-right: 40px; }
+}
+
+/* ==========================================================================
+   Editor and player on a phone
+   The pages were built for a desktop editor. Inside the app they get a native
+   phone chrome: 20px gutters, 44px targets, capsule controls, sheets with
+   rounded tops and a bottom bar that respects the gesture area.
+   Everything below is scoped to html.fl-editor / html.fl-player.
+   ========================================================================== */
+
+/* The web fonts loaded by the pages: use the same face as the native app. */
+html.fl-editor,html.fl-player{--font:Inter,"SF Pro Text",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;--fl-gutter:20px;--fl-radius:24px;--fl-control:14px}
+html.fl-editor .icon,html.fl-player .player-header svg,html.fl-player .practice-toolbar svg,html.fl-player .practice-bar svg,html.fl-player .settings-panel svg{stroke-width:1.9}
+
+@media (max-width:767px){
+  /* ---------------- Editor: page frame ---------------- */
+  html.fl-editor{--header:60px;--tabs:44px;--dock-height:0px}
+  html.fl-editor body{background:var(--chrome);max-width:100vw;overflow:hidden}
+  html.fl-editor .editor-layout{min-width:0;overflow:hidden}
+  html.fl-editor .work-area{min-width:0;background:var(--chrome)}
+
+  /* ---------------- Editor: header ---------------- */
+  html.fl-editor .app-header{height:60px;gap:0;padding:0 14px;background:color-mix(in srgb,var(--chrome) 92%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line);overflow:visible}
+  html.fl-editor .mobile-toolbar{height:60px;gap:2px;padding:0}
+  html.fl-editor .mobile-song-title{flex:1;min-width:0;padding:0 4px;overflow:hidden;font-size:17px;font-weight:650;letter-spacing:-.022em;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .mobile-toolbar .icon-button,html.fl-editor .mobile-toolbar .transport-button,html.fl-editor .mobile-toolbar>.button{height:44px;min-width:44px;padding:0;border-radius:50%;background:transparent;color:var(--text-2);font-size:14px;font-weight:600;transition:background .18s ease,color .18s ease,transform .16s ease}
+  html.fl-editor .mobile-toolbar .icon-button:active,html.fl-editor .mobile-toolbar .transport-button:active,html.fl-editor .mobile-toolbar>.button:active{transform:scale(.92);background:var(--control)}
+  html.fl-editor .mobile-toolbar .icon-button:disabled{opacity:.3}
+  html.fl-editor #btn-undo-mobile,html.fl-editor #btn-redo-mobile{font-size:0;color:var(--text-2)}
+  html.fl-editor #btn-undo-mobile::before,html.fl-editor #btn-redo-mobile::before{content:"";width:21px;height:21px;background:currentColor;-webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
+  html.fl-editor #btn-undo-mobile::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 14 4 9l5-5'/%3E%3Cpath d='M4 9h9a6 6 0 0 1 0 12h-2'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 14 4 9l5-5'/%3E%3Cpath d='M4 9h9a6 6 0 0 1 0 12h-2'/%3E%3C/svg%3E")}
+  html.fl-editor #btn-redo-mobile::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 14 5-5-5-5'/%3E%3Cpath d='M20 9h-9a6 6 0 0 0 0 12h2'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 14 5-5-5-5'/%3E%3Cpath d='M20 9h-9a6 6 0 0 0 0 12h2'/%3E%3C/svg%3E")}
+  html.fl-editor #btn-play-mobile{width:46px;height:46px;min-width:46px;margin:0 3px;background:var(--accent);color:#fff;font-size:0;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 34%,transparent)}
+  html.fl-editor #btn-play-mobile::before{content:"";width:20px;height:20px;background:currentColor;-webkit-mask:center/contain no-repeat;mask:center/contain no-repeat;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 5 11 7-11 7z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m8 5 11 7-11 7z'/%3E%3C/svg%3E")}
+  html.fl-editor #btn-play-mobile[aria-label="Pause"]::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 5h4v14H7zM14 5h4v14h-4z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 5h4v14H7zM14 5h4v14h-4z'/%3E%3C/svg%3E")}
+  html.fl-editor #btn-more{width:auto;min-width:0;height:44px;margin-left:4px;padding:0 16px;border-radius:999px;background:var(--control);color:var(--text);font-size:13.5px;font-weight:600}
+
+  /* ---------------- Editor: document tabs ---------------- */
+  /* One open song needs no tab: the header already names it. A second document
+     brings the switcher back. */
+  html.fl-editor:not(.fl-multi-doc){--tabs:0px}
+  html.fl-editor:not(.fl-multi-doc) .file-tabs{display:none}
+  html.fl-editor.fl-dirty:not(.fl-multi-doc) .mobile-song-title::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-radius:50%;background:var(--accent-text);vertical-align:middle}
+  html.fl-editor .file-tabs{height:44px;min-width:0;padding:0 16px;gap:6px;background:var(--chrome);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+  html.fl-editor .file-tab{min-width:0;max-width:calc(100vw - 92px);height:34px;margin:5px 0;padding:0 13px;gap:7px;border-radius:999px;background:var(--control);color:var(--text-2);font-size:13px;font-weight:550}
+  html.fl-editor .file-tab.is-active{background:var(--control-hover);color:var(--text)}
+  html.fl-editor .tab-note .icon{width:15px;height:15px}
+  html.fl-editor .tab-add{width:34px;height:34px;min-width:34px;margin:5px 0;border-radius:50%;background:var(--control);color:var(--text-2)}
+  html.fl-editor .tab-dirty{display:none}
+  html.fl-editor .tab-dirty.unsaved{display:inline-block;margin-left:2px;color:var(--accent-text);font-size:0}
+  html.fl-editor .tab-dirty.unsaved::before{content:"";display:block;width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  /* ---------------- Editor: track/practice toolbar ---------------- */
+  html.fl-editor .score-tools-row{min-height:58px;height:58px;gap:6px;padding:0 40px 0 16px;background:var(--chrome);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent)}
+  html.fl-editor .score-tools-row::-webkit-scrollbar{display:none}
+  html.fl-editor .track-context{flex:none;min-width:0;max-width:none;gap:0}
+  html.fl-editor .track-context label{display:none}
+  html.fl-editor .track-context select,html.fl-editor #active-track-select{width:auto;min-width:168px;max-width:236px;height:44px;padding:0 34px 0 14px;border-radius:var(--fl-control);background:var(--control);font-size:14px;font-weight:550;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .practice-controls{gap:8px;margin-left:auto;padding-right:4px;white-space:nowrap}
+  html.fl-editor .practice-controls .icon-button{width:44px;height:44px;min-width:44px;padding:0;border-radius:50%;background:var(--control);color:var(--text-2)}
+  html.fl-editor .practice-controls .icon-button.active{background:var(--accent-soft);color:var(--accent-text)}
+  html.fl-editor .practice-controls .icon-button .icon{width:20px;height:20px}
+  html.fl-editor .separator{display:none}
+
+  /* ---------------- Editor: score ---------------- */
+  html.fl-editor .score-stage{isolation:isolate;background:var(--desk)}
+  html.fl-editor .score-scroll{padding:16px 14px calc(316px + env(safe-area-inset-bottom));overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+  html.fl-editor .score-scroll::-webkit-scrollbar{display:none}
+  html.fl-editor .score-page{margin:0 auto 18px;border-radius:10px;box-shadow:var(--paper-shadow)}
+  html.fl-editor .timeline-strip,html.fl-editor .workspace-status{display:none}
+  html.fl-editor .toast{bottom:calc(304px + env(safe-area-inset-bottom));max-width:calc(100vw - 40px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---------------- Editor: track mixer as a sheet ---------------- */
+  html.fl-editor .track-dock{display:none}
+  html.fl-editor body:not(.hide-mixer)::after{content:"";position:fixed;inset:0;z-index:69;background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+  html.fl-editor body:not(.hide-mixer) .track-dock{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;flex-direction:column;max-height:72dvh;min-height:0;padding:16px 0 env(safe-area-inset-bottom);border:0;border-radius:24px 24px 0 0;background:var(--panel);box-shadow:0 -20px 60px rgba(0,0,0,.4);overflow:hidden;animation:fl-sheet-up .32s cubic-bezier(.32,1.16,.56,1) both}
+  html.fl-editor body:not(.hide-mixer) .track-dock::before{content:"";position:absolute;top:8px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:99px;background:var(--line-strong)}
+  html.fl-editor .track-dock .dock-resizer,html.fl-editor .track-dock .dock-status,html.fl-editor .track-dock .dock-volume,html.fl-editor .track-dock .dock-collapse-toggle{display:none}
+  html.fl-editor .track-dock .dock-topline{flex:none;gap:8px;min-height:52px;height:52px;padding:0 16px;border-bottom:1px solid var(--line)}
+  html.fl-editor .track-dock .dock-title{gap:8px;font-size:17px;font-weight:650;letter-spacing:-.015em}
+  html.fl-editor .track-dock .dock-title .icon{width:18px;height:18px;color:var(--text-2)}
+  html.fl-editor .track-dock .track-count{font-size:12px;color:var(--text-3);font-weight:500}
+  html.fl-editor .track-dock .dock-add{width:auto;height:44px;padding:0 14px;border-radius:999px;background:var(--control);font-size:13px;font-weight:600}
+  html.fl-editor .track-dock .dock-add .icon{width:16px;height:16px}
+  html.fl-editor .track-dock .dock-spacer{flex:1}
+  html.fl-editor .fl-dock-close{display:grid;place-items:center;flex:none;width:44px;height:44px;margin-left:2px;padding:0;border-radius:50%;background:var(--control);color:var(--text-2)}
+  html.fl-editor .fl-dock-close:active{transform:scale(.93);background:var(--control-hover)}
+  html.fl-editor .track-dock .track-list{flex:0 1 auto;display:block;min-height:0;max-height:calc(60dvh - 52px);overflow-y:auto;overscroll-behavior:contain}
+  html.fl-editor .track-dock .mixer-track{grid-template-columns:24px minmax(0,1fr) 44px 44px 92px;gap:8px;min-width:0;height:56px;padding:0 16px;border-left:0;border-bottom:1px solid var(--line)}
+  html.fl-editor .track-dock .track-number,html.fl-editor .track-dock .track-spark,html.fl-editor .track-dock .track-instrument{display:none}
+  html.fl-editor .track-dock .track-visible{width:20px;height:20px}
+  html.fl-editor .track-dock .track-name-btn{min-height:44px;font-size:14px}
+  html.fl-editor .track-dock .mix-btn{width:44px;height:44px;border-radius:10px;font-size:11px}
+  html.fl-editor .track-dock .mix-volume{width:100%;min-width:0}
+  html.fl-editor .track-dock .mixer-track.selected{background:var(--accent-soft)}
+
+  /* ---------------- Editor: touch note entry ---------------- */
+  html.fl-editor .touch-entry{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:17px 16px calc(12px + env(safe-area-inset-bottom));border:0;border-top:1px solid var(--line);border-radius:24px 24px 0 0;background:color-mix(in srgb,var(--panel) 93%,transparent);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);box-shadow:0 -14px 44px rgba(0,0,0,.2)}
+  html.fl-editor .touch-entry::before{content:"";position:absolute;top:7px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:99px;background:var(--line-strong)}
+  html.fl-editor .touch-entry[hidden]{display:none!important}
+  html.fl-editor .touch-top{display:grid;gap:8px;min-width:0}
+  html.fl-editor .touch-nav{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;align-items:center;gap:6px;min-width:0}
+  html.fl-editor .touch-nav button,html.fl-editor .touch-config>button{height:44px;min-width:44px;padding:0 11px;border-radius:12px;background:var(--control);color:var(--text);font-size:13px;font-weight:600;white-space:nowrap;transition:background .16s ease,transform .14s ease}
+  html.fl-editor .touch-nav button:active,html.fl-editor .touch-config>button:active,html.fl-editor .touch-keypad button:active,html.fl-editor .touch-effects button:active{transform:scale(.94);background:var(--control-hover)}
+  html.fl-editor .touch-nav span{min-width:0;overflow:hidden;text-align:center;color:var(--text-2);font-size:12.5px;font-weight:550;font-variant-numeric:tabular-nums;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .touch-config{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0}
+  html.fl-editor .touch-strings{display:flex;align-items:center;gap:2px;height:44px;min-width:0;padding:0 2px;border-radius:12px;background:var(--control)}
+  html.fl-editor .touch-strings button{width:40px;height:42px;min-width:40px;padding:0;border-radius:9px;background:transparent;color:var(--text-2);font-size:18px;font-weight:500}
+  html.fl-editor .touch-strings button:active{background:var(--control-hover);color:var(--text)}
+  html.fl-editor .touch-strings span{flex:1;min-width:0;overflow:hidden;text-align:center;color:var(--text);font-size:12.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .touch-config label{display:flex;align-items:center;gap:0;color:var(--text-3);font-size:0;font-weight:600;white-space:nowrap}
+  html.fl-editor .touch-config select{width:auto;height:44px;padding:0 27px 0 12px;border-radius:12px;background:var(--control);color:var(--text);font-size:12.5px;font-weight:600}
+  html.fl-editor .touch-config>button[data-touch="rest"]{padding:0 14px}
+  html.fl-editor .touch-bottom{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,1fr);align-items:start;gap:8px;min-width:0}
+  html.fl-editor .touch-keypad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(3,44px);gap:6px;min-width:0}
+  html.fl-editor .touch-keypad button{min-width:0;height:44px;padding:0;border-radius:12px;background:var(--control);color:var(--text);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+  html.fl-editor .touch-effects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,44px);gap:6px;min-width:0}
+  html.fl-editor .touch-effects button{min-width:0;height:44px;padding:0 5px;overflow:hidden;border-radius:12px;background:var(--control);color:var(--text-2);font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .touch-effects button.active{background:var(--accent-soft);color:var(--accent-text)}
+
+  /* ---------------- Editor: palette and inspector as sheets ---------------- */
+  html.fl-editor body.show-palette::before,html.fl-editor body.show-inspector::before{content:"";position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+  html.fl-editor body.show-palette .palette,html.fl-editor body.show-inspector .inspector{position:fixed;inset:auto 0 0;z-index:60;display:flex;flex-direction:column;width:100%;max-width:none;max-height:88dvh;min-height:0;padding:18px 0 env(safe-area-inset-bottom);border:0;border-radius:24px 24px 0 0;background:var(--panel);box-shadow:0 -20px 60px rgba(0,0,0,.34);animation:fl-sheet-up .32s cubic-bezier(.32,1.16,.56,1) both}
+  html.fl-editor body.show-palette .palette::before,html.fl-editor body.show-inspector .inspector::before{content:"";position:absolute;top:8px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:99px;background:var(--line-strong)}
+  html.fl-editor body.show-palette .palette::-webkit-scrollbar,html.fl-editor body.show-inspector .inspector::-webkit-scrollbar{display:none}
+  html.fl-editor .palette .panel-heading{min-height:48px;padding:0 20px;font-size:18px;font-weight:700;letter-spacing:-.02em;border-bottom:1px solid var(--line)}
+  html.fl-editor .palette-section{padding:14px 20px;border-bottom:1px solid var(--line)}
+  html.fl-editor .section-label{margin:0 2px 10px;color:var(--text-3);font-size:11.5px;font-weight:650;letter-spacing:0;text-transform:none}
+  html.fl-editor .duration-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  html.fl-editor .palette-tool{height:52px;border-radius:12px}
+  html.fl-editor .effect-grid{gap:8px}
+  html.fl-editor .effect-tool{height:44px;border-radius:12px;padding:0 10px}
+  html.fl-editor .compact-field{grid-template-columns:70px minmax(0,1fr);gap:10px;margin-top:8px;font-size:13px}
+  html.fl-editor .compact-field input,html.fl-editor .compact-field select{height:40px;border-radius:11px}
+  html.fl-editor .mini-tool{height:44px;padding:0 14px;border-radius:11px;font-size:13px;font-weight:600}
+  html.fl-editor .lyrics-open{width:100%;height:44px;margin:8px 0 4px;border-radius:12px;background:var(--control);font-size:13px}
+  html.fl-editor .wide-tool{min-height:44px;padding:0 12px;border-radius:11px;font-size:14px}
+  html.fl-editor .inspector-tabs{grid-template-columns:repeat(3,1fr);gap:4px;margin:2px 20px 10px;padding:4px;border-radius:999px;background:var(--control)}
+  html.fl-editor .inspector-tab{height:40px;border-radius:999px;font-size:13.5px;font-weight:600}
+  html.fl-editor .inspector-scroll{padding:0 20px}
+  html.fl-editor .inspector-panel{padding:4px 0 24px}
+  html.fl-editor .inspector-title{margin:14px 0 4px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+  html.fl-editor .field-label{margin:14px 0 6px;font-size:12.5px;font-weight:600}
+  html.fl-editor .text-input,html.fl-editor select.text-input,html.fl-editor input.text-input{height:46px;border-radius:12px;background:var(--control);font-size:16px}
+  html.fl-editor .two-fields{gap:10px}
+  html.fl-editor .inspector-divider{margin:20px 0 6px}
+  html.fl-editor .inspector-note,html.fl-editor .dialog-note{display:none}
+  html.fl-editor .inspector-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  html.fl-editor .bt-hint{display:none}
+  html.fl-editor .bt-status{max-width:46%;font-size:12px;font-weight:500}
+  html.fl-editor .bt-panel{gap:10px}
+  html.fl-editor .bt-wave{height:88px;border-radius:12px}
+  html.fl-editor .bt-row{gap:8px}
+  html.fl-editor .bt-btn{height:44px;border-radius:12px}
+  html.fl-editor #note-entry-help{display:none}
+  html.fl-editor .inspector #btn-shortcuts,html.fl-editor .secondary-tool .arrow-icon{display:none}
+  html.fl-editor .inspector-footer{padding:8px 20px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  html.fl-editor .text-action{height:44px;border-radius:12px;font-size:14px}
+  html.fl-editor .fretboard-heading{font-size:11.5px}
+  html.fl-editor .fretboard-panel{position:absolute;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));z-index:4;height:36dvh;max-height:none;padding:14px 20px 16px;border:0;border-radius:20px 20px 0 0;background:var(--panel-2);box-shadow:0 -14px 36px rgba(0,0,0,.28);overflow:auto}
+  html.fl-editor .fretboard-heading>span:first-child{font-size:0}
+  html.fl-editor .fretboard-heading>span:first-child::before{content:"Fretboard";font-size:13px;font-weight:650;color:var(--text);text-transform:none}
+  html.fl-editor .scale-picker{font-size:11.5px}
+  html.fl-editor .fretboard .fret{min-height:24px}
+
+  /* ---------------- Editor: dialogs become bottom sheets ---------------- */
+  html.fl-editor dialog.shortcuts-dialog,html.fl-editor dialog.more-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:none;max-height:92dvh;margin:0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));border:0;border-radius:24px 24px 0 0;background:var(--panel);color:var(--text);box-shadow:0 -20px 60px rgba(0,0,0,.4);overflow-y:auto;overscroll-behavior:contain}
+  html.fl-editor dialog.shortcuts-dialog[open],html.fl-editor dialog.more-sheet[open]{animation:fl-sheet-up .34s cubic-bezier(.32,1.16,.56,1) both}
+  html.fl-editor dialog.shortcuts-dialog::before,html.fl-editor dialog.more-sheet::before{content:"";display:block;width:36px;height:4px;margin:-6px auto 14px;border-radius:99px;background:var(--line-strong)}
+  html.fl-editor dialog::backdrop{background:rgba(0,0,0,.44);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+  html.fl-editor dialog .icon-button:focus-visible{outline:none}
+  html.fl-editor .dialog-header{align-items:center;margin-bottom:14px}
+  html.fl-editor .dialog-header h2{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15}
+  html.fl-editor .dialog-kicker{display:none}
+  html.fl-editor .shortcuts-dialog .icon-button,html.fl-editor .more-sheet .icon-button{width:44px;height:44px;min-width:44px;border-radius:50%;background:var(--control);color:var(--text-2);font-size:20px;line-height:1}
+  html.fl-editor .text-input,html.fl-editor select,html.fl-editor input[type=number],html.fl-editor input[type=text]{font-size:16px}
+  html.fl-editor .shortcuts-dialog .text-input{height:48px;border-radius:12px;background:var(--control)}
+  html.fl-editor .form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
+  html.fl-editor .form-grid .span-2{grid-column:1/-1}
+  html.fl-editor .field-label{margin:0 0 6px}
+  html.fl-editor .save-choice{margin-top:16px;padding:12px 14px;border-radius:14px;background:var(--control)}
+  html.fl-editor .save-choice strong{font-size:14px}
+  html.fl-editor .save-choice small{font-size:12.5px;line-height:1.4}
+  html.fl-editor .dialog-footer{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;padding-top:4px;position:sticky;bottom:0;background:var(--panel)}
+  html.fl-editor .dialog-footer .button{height:48px;border-radius:14px;font-size:15px;font-weight:600}
+  html.fl-editor .dialog-footer .button:only-child{grid-column:1/-1}
+  html.fl-editor .dialog-footer .button-primary{box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 28%,transparent)}
+  html.fl-editor .button{height:44px;padding:0 18px;border-radius:14px;font-size:14px;font-weight:600}
+  html.fl-editor kbd{display:none}
+
+  /* The More sheet: tidy two-column actions, full-width setting rows. */
+  html.fl-editor .more-sheet{display:flex;flex-direction:column;overflow:hidden}
+  html.fl-editor dialog.more-sheet:not([open]){display:none}
+  html.fl-editor .more-sheet .dialog-header{flex:none}
+  html.fl-editor .more-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:none;padding:0;overflow-y:auto;overscroll-behavior:contain}
+  html.fl-editor .more-grid>button,html.fl-editor .more-grid>.more-link{height:48px;min-height:48px;padding:0 14px;overflow:hidden;border-radius:14px;background:var(--control);font-size:13.5px;font-weight:550;text-overflow:ellipsis;white-space:nowrap}
+  html.fl-editor .more-grid>button:active,html.fl-editor .more-grid>.more-link:active{background:var(--control-hover);transform:scale(.98)}
+  html.fl-editor .more-grid>label{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) 128px;align-items:center;gap:12px;height:50px;min-height:50px;padding:0 14px;border-radius:14px;background:var(--control);color:var(--text-2);font-size:13px;font-weight:550}
+  html.fl-editor .fl-more-heading{grid-column:1/-1;margin:10px 2px 0;color:var(--text-3);font-size:12px;font-weight:650;line-height:1.3}
+  html.fl-editor .fl-more-heading:first-child{margin-top:0}
+  html.fl-editor .more-grid select,html.fl-editor .more-grid input[type=number],html.fl-editor .more-grid input[type=text]{height:36px;border-radius:10px;background:var(--control-hover);font-size:13px}
+  html.fl-editor .more-grid input[type=range]{width:100%}
+  html.fl-editor .more-grid>.more-link,html.fl-editor .more-grid [data-click="btn-shortcuts"],html.fl-editor .more-grid [data-click="btn-fullscreen"],html.fl-editor .more-grid [data-click="btn-focus"]{display:none}
+  html.fl-editor .more-sheet .dialog-header h2{font-size:24px}
+
+  /* Editor empty state: a plain sentence is better than a second toolbar. */
+  html.fl-editor .score-empty-hint{gap:10px;padding:28px 18px;color:#6e6e73;font-size:13px}
+  html.fl-editor .score-empty-hint strong{color:#1d1d1f;font-size:17px;font-weight:650}
+  html.fl-editor .empty-note{display:none}
+  html.fl-editor .score-empty-hint .button{height:44px;border-radius:999px;background:var(--accent);color:#fff;font-weight:600}
+
+  /* ---------------- Player ---------------- */
+  html.fl-player body{background:var(--bg);max-width:100vw;overflow:hidden}
+  html.fl-player .player-header{min-height:60px;gap:6px;padding:6px 12px;background:color-mix(in srgb,var(--surface) 94%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
+  html.fl-player .player-brand img{width:30px;height:30px;border-radius:8px}
+  html.fl-player .song-caption strong{font-size:17px;font-weight:650;letter-spacing:-.022em}
+  html.fl-player .song-caption-sub{gap:6px;margin-top:1px;font-size:12px}
+  html.fl-player .header-actions{gap:4px}
+  html.fl-player .header-actions a,html.fl-player .quiet-button{width:44px;height:44px;min-width:44px;padding:0;border-radius:50%;background:var(--control);color:var(--text-2)}
+  html.fl-player .header-actions a>span,html.fl-player .quiet-button>span{display:none}
+  html.fl-player .header-actions a:active,html.fl-player .quiet-button:active{transform:scale(.93);background:var(--control-hover)}
+  html.fl-player #back-library.fl-back{width:44px;height:44px;min-width:44px;margin:0 -2px 0 0;border-radius:50%;background:transparent;color:var(--text)}
+  html.fl-player #back-library.fl-back:active{background:var(--control)}
+
+  /* Practice toolbar: capsule controls that scroll under a soft edge. */
+  html.fl-player .practice-toolbar{background:var(--surface);border-bottom:1px solid var(--line);-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 42px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 42px),transparent)}
+  html.fl-player .practice-toolbar-inner{min-height:62px;gap:8px;padding:9px 42px 9px 14px}
+  html.fl-player .practice-toolbar label{min-height:44px;gap:7px;padding:0 13px;border-radius:999px;background:var(--control);color:var(--text-2);font-size:12.5px}
+  html.fl-player .practice-toolbar label.tempo-field{padding-right:9px}
+  html.fl-player .practice-toolbar small{font-size:10.5px;font-weight:600}
+  html.fl-player .practice-toolbar input[type=number]{width:58px;height:38px;padding:0;background:transparent;font-size:16px;font-weight:600;text-align:right}
+  html.fl-player .practice-toolbar select{height:38px;max-width:154px;padding:0 28px 0 0;background:transparent;font-size:13.5px;font-weight:550}
+  html.fl-player .tool-button,html.fl-player .settings-action{height:44px;padding:0 15px;border-radius:999px;background:var(--control);font-size:13px;font-weight:600}
+  html.fl-player .settings-action.icon-only{width:44px;padding:0}
+  html.fl-player .practice-toggle-state{font-size:10.5px}
+  html.fl-player .tool-indicator{width:8px;height:8px}
+
+  /* Score: edge-to-edge paper, no web scrollbar. */
+  html.fl-player .player-stage{background:var(--desk)}
+  html.fl-player .score-scroll{padding:10px 8px calc(16px + env(safe-area-inset-bottom));scrollbar-width:none}
+  html.fl-player .score-scroll::-webkit-scrollbar{display:none}
+  html.fl-player .score-page{border-radius:8px;box-shadow:var(--paper-shadow)}
+
+  /* Bottom transport: scrubber on top, controls underneath, safe area at the bottom. */
+  html.fl-player .practice-bar{padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--surface) 95%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:1px solid var(--line);box-shadow:0 -12px 36px rgba(0,0,0,.1)}
+  html.fl-player .transport-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:0;max-width:none}
+  html.fl-player .playback-progress{order:1;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:8px;flex:1 0 100%;width:100%;min-width:0;color:var(--text-2);font-size:11.5px}
+  html.fl-player .playback-progress input{height:28px;grid-column:2}
+  html.fl-player .playback-progress>#playback-bar-position{min-width:0;padding:0 8px;height:22px;border:0;border-radius:999px;background:var(--control);color:var(--text-2);font-size:10.5px;font-weight:600;line-height:22px;text-align:center}
+  html.fl-player .playback-progress input::-webkit-slider-thumb{width:18px;height:18px;margin-top:-7px}
+  html.fl-player .transport-main{order:2;flex:none;gap:4px}
+  html.fl-player .restart-button{width:44px;height:44px;border-radius:50%;color:var(--text-2)}
+  html.fl-player .play-button{width:50px;height:50px;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 32%,transparent)}
+  html.fl-player .play-button svg{width:23px;height:23px}
+  html.fl-player .practice-controls{order:2;display:flex;flex:1;min-width:0;justify-content:flex-end;gap:6px;margin-left:0}
+  html.fl-player .track-control{flex:1;min-width:0;max-width:none}
+  html.fl-player .track-control select{width:100%;max-width:none;height:44px;padding:0 28px 0 14px;border-radius:999px;background:var(--control);font-size:13px;font-weight:550}
+  html.fl-player .speed-control{flex:none}
+  html.fl-player .speed-control select{width:auto;min-width:74px;height:44px;padding:0 28px 0 14px;border-radius:999px;background:var(--control);font-size:13px;font-weight:600}
+  html.fl-player .control-label{display:none}
+  html.fl-player .repeat-button{width:44px;height:44px;padding:0;border-radius:50%}
+  html.fl-player .repeat-button>span{display:none}
+  html.fl-player .repeat-edit{position:absolute;right:0;bottom:calc(100% + 4px);height:24px;padding:0 9px;border-radius:999px;font-size:10.5px}
+  html.fl-player .toast{top:auto;bottom:calc(160px + env(safe-area-inset-bottom));max-width:calc(100vw - 40px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transform:translate(-50%,8px);transition:opacity .2s ease,transform .28s cubic-bezier(.32,1.16,.56,1)}
+  html.fl-player .toast.visible{transform:translate(-50%,0)}
+  html.fl-player:has(.repeat-range:not([hidden])) .toast{bottom:calc(456px + env(safe-area-inset-bottom))}
+  html.fl-player .bar-hint{z-index:5;top:auto;bottom:calc(150px + env(safe-area-inset-bottom));max-width:calc(100vw - 40px);padding:9px 14px;overflow:hidden;font-size:12.5px;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Repeat range sits above the transport as a small card. */
+  html.fl-player .repeat-range{position:fixed;left:12px;right:12px;bottom:calc(142px + env(safe-area-inset-bottom));width:auto;max-height:none;padding:18px;border-radius:22px;background:var(--surface);box-shadow:var(--shadow)}
+  html.fl-player .range-heading{font-size:17px;font-weight:650}
+  html.fl-player .report-heading .close-dialog{width:44px;height:44px}
+  html.fl-player .range-fields input{height:46px;border-radius:12px;font-size:16px}
+  html.fl-player .range-actions button{height:44px;border-radius:12px;font-size:13.5px;font-weight:600}
+  html.fl-player .trainer-toggle{padding-top:16px}
+  html.fl-player .close-dialog,html.fl-player .range-heading button{width:44px;height:44px;border-radius:50%}
+
+  /* Sheets: track mix, more menu and report. */
+  html.fl-player .settings-panel{inset:auto 0 0;width:100%;max-height:84dvh;padding:20px 20px calc(20px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.4)}
+  html.fl-player .settings-panel::before{content:"";position:absolute;top:8px;left:50%;z-index:2;width:36px;height:4px;margin-left:-18px;border-radius:99px;background:var(--line-strong)}
+  html.fl-player .settings-panel .panel-heading{top:-20px;margin:-20px -20px 0;padding:20px 20px 10px;background:var(--surface)}
+  html.fl-player .panel-heading h2{font-size:22px;font-weight:700;letter-spacing:-.025em}
+  html.fl-player .volume-setting{padding:12px 0 16px;font-size:14px}
+  html.fl-player .mixer-track{min-height:58px}
+  html.fl-player .track-name-btn{font-size:14px}
+  html.fl-player .mix-btn{height:44px;border-radius:10px}
+  html.fl-player .more-menu{top:calc(60px + 8px);right:12px;bottom:auto;left:auto;min-width:210px;padding:7px;border-radius:16px}
+  html.fl-player .more-menu button{height:44px;font-size:14px}
+  html.fl-player .report-dialog{width:100%;max-width:none;max-height:90dvh;margin:auto 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0}
+  html.fl-player .report-dialog::before{content:"";position:absolute;top:8px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:99px;background:var(--line-strong)}
+  html.fl-player .report-heading{margin-top:8px}
+  html.fl-player .report-heading h2,html.fl-player .report-done h2{font-size:22px}
+  html.fl-player .report-intro{font-size:13px}
+  html.fl-player .report-actions{position:sticky;bottom:0;padding-top:4px}
+  html.fl-player .report-cancel,html.fl-player .report-submit{height:46px;border-radius:14px}
+  html.fl-player .private-banner{padding:9px 16px;font-size:12.5px}
+  html.fl-player .private-banner button{height:32px;border-radius:999px}
+  html.fl-player .hand-guide{width:calc(100% - 20px);border-radius:18px}
+
+  /* Anything still sized for a mouse gets a thumb-sized hit area. */
+  html.fl-player .quiet-button .button-label,html.fl-player .settings-action .button-label{display:none}
+  html.fl-player .empty-hint strong{font-size:17px}
+}
+
+/* Dark player: the app chrome follows the system, the paper stays paper. */
+@media (prefers-color-scheme:dark){
+  html.fl-player{color-scheme:dark;--bg:#0b0b0d;--surface:#171719;--desk:#1e1e21;--control:rgba(255,255,255,.08);--control-hover:rgba(255,255,255,.13);--line:rgba(255,255,255,.09);--line-strong:rgba(255,255,255,.16);--text:#f2f2f7;--text-2:#a1a1a8;--text-3:#6f6f77;--accent:#0a84ff;--accent-hover:#3a9bff;--accent-soft:rgba(10,132,255,.22);--accent-text:#64b0ff;--danger:#ff453a;--shadow:0 20px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.07);--paper-shadow:0 18px 50px rgba(0,0,0,.55)}
+  html.fl-player body{background:var(--bg);color:var(--text)}
+  html.fl-player .player-header,html.fl-player .practice-toolbar,html.fl-player .practice-bar,html.fl-player .settings-panel .panel-heading{background:color-mix(in srgb,var(--surface) 94%,transparent)}
+  html.fl-player .score-page,html.fl-player #alphatab .at-surface,html.fl-player #alphatab .at-viewport{background:#fff}
+}
+
+@keyframes fl-sheet-up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  html.fl-editor dialog.shortcuts-dialog[open],html.fl-editor dialog.more-sheet[open],html.fl-editor body.show-palette .palette,html.fl-editor body.show-inspector .inspector{animation:none}
+}

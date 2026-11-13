@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fretlark</string>
+    <string name="saved_to_downloads">Saved to Downloads: %1$s</string>
+    <string name="save_failed">Could not save the file.</string>
+    <string name="open">Open</string>
+    <string name="choose_files">Choose files</string>
+    <string name="no_app_for_link">No app can open this link.</string>
+    <string name="print_job">Fretlark: %1$s</string>
+</resources>
