@@ -13,7 +13,7 @@ Write, play and share guitar tabs in your browser. View the Public Version [here
 
 </div>
 
-<img src="docs/screenshots/editor.webp" alt="The Fretlark editor: notation and tab side by side" width="100%">
+<img src="docs/screenshots/demo.gif" alt="Fretlark demo: share a song in one click, open the link, play along and see the fingering" width="100%">
 
 ## Why Fretlark
 
