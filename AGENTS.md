@@ -68,11 +68,11 @@ Ask the user which one they want before starting.
 | `Dockerfile` | Self-hosted image based on `node:22-slim` |
 | `docker-compose.yml` | Port 8787 plus the `fretlark-data` volume |
 | `scripts/docker-start.sh` | Applies migrations, creates the MFA key, starts `wrangler dev` on `0.0.0.0:8787` |
-| `verify-*.cjs/mjs` | Tests; `npm test` runs all |
+| `test/verify-*.cjs/mjs` | Tests; `npm test` runs all |
 
 ## Changing things safely
 
-- Database changes: add a new numbered file in `drizzle/` (never edit an applied one) and add it to the in-memory schema list in `verify-lessons.mjs`.
+- Database changes: add a new numbered file in `drizzle/` (never edit an applied one) and add it to the in-memory schema list in `test/verify-lessons.mjs`.
 - Many tests run slices of `public/editor/app.js` in a Node VM; new identifiers used inside those slices must be guarded (`typeof x === 'function'`) so the slices still run.
 - Run `npm test` after every change.
 - Deploy with `npm run deploy` (code only) or `npm run deploy:update` (migrations + code). For Docker, rebuild with `docker compose up -d --build`.

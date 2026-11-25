@@ -171,7 +171,7 @@ drizzle/                SQL migrations
 scripts/                setup, make-owner, asset versioning, Docker start
 Dockerfile              self-hosted image (Wrangler's local runtime)
 docker-compose.yml      one-command Docker setup with a data volume
-verify-*.{cjs,mjs}      tests (npm test)
+test/                   tests and fixtures (npm test)
 ```
 
 </details>
