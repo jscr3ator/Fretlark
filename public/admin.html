@@ -9,8 +9,8 @@
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="/favicon.svg?v=4">
   <title>Library — Fretlark</title>
-  <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
-  <link rel="stylesheet" href="/admin.css?v=71d9296a249b">
+  <script src="/theme-init.js?v=e2170b9c81e0"></script>
+  <link rel="stylesheet" href="/admin.css?v=f646905ec1b0">
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -56,7 +56,6 @@
         </div>
       </div>
       <div class="access-fields">
-        <p id="legacy-access-note" class="legacy-note" hidden>Your older library is still private. Sign in or create a password account, then claim those songs from your library.</p>
         <form id="auth-form" novalidate>
           <div class="field-group">
             <label id="auth-email-label" class="field-label sr-only" for="auth-email">Username</label>
@@ -66,10 +65,11 @@
             <div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="1024" placeholder="Password" required><button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m4 4 16 16"/></svg></button></div>
             <div class="password-field" id="auth-password2-wrap" hidden><input id="auth-password2" name="password2" type="password" autocomplete="new-password" maxlength="1024" placeholder="Confirm new password"></div>
           </div>
-          <p id="password-hint" class="field-hint" hidden>Use at least 8 characters.</p>
+          <p id="password-hint" class="field-hint" hidden>Use at least 10 characters.</p>
           <button id="forgot-link" class="text-button forgot-link" type="button">Forgot password?</button>
           <button id="forgot-recovery-link" class="text-button forgot-recovery-link" type="button" hidden>Use my recovery key instead</button>
           <button id="reset-back" class="text-button forgot-recovery-link" type="button" hidden>Back to forgot password</button>
+          <div id="auth-turnstile" class="auth-turnstile" hidden></div>
           <p id="auth-status" class="form-status" role="status" aria-live="polite"></p>
           <button id="auth-submit" class="button primary large full-width" type="submit">Sign in</button>
         </form>
@@ -157,7 +157,6 @@
           </div>
           <label class="search"><svg class="icon"><use href="#i-search"/></svg><span class="sr-only">Search songs or artists</span><input id="search" type="search" placeholder="Search" autocomplete="off"><kbd id="search-shortcut" aria-hidden="true">Ctrl K</kbd></label>
         </header>
-        <section id="migration" class="migration-note" hidden aria-labelledby="migration-title"><strong id="migration-title">Older songs available</strong><button id="claim-lessons" class="text-button" type="button">Claim songs</button></section>
         <div class="library-results">
           <div id="lesson-list" class="lesson-list" aria-label="Songs"></div>
           <div id="empty" class="empty-state" hidden>
@@ -234,7 +233,7 @@
           <h3>Account</h3>
           <div class="account-summary"><span class="avatar large" aria-hidden="true"></span><div><p id="account-label" class="account-email"></p><p class="field-hint">Personal account</p></div></div>
           <div class="settings-row"><div><h4>Appearance</h4></div><div class="segmented" role="group" aria-label="Appearance"><button type="button" data-theme-choice="system" aria-pressed="true">System</button><button type="button" data-theme-choice="light" aria-pressed="false">Light</button><button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button></div></div>
-          <div class="settings-row"><div><h4>Mobile app</h4><p>Your songs on your phone. Android now, iOS coming soon.</p></div><a class="button" href="/downloads/fretlark-android.apk" download>Get the app</a></div>
+          <div class="settings-row"><div><h4>Mobile app</h4><p>Your songs on your phone. Android now, iOS coming soon.</p></div><a class="button" href="https://github.com/jscr3ator/Fretlark/releases?q=android" target="_blank" rel="noopener">Get the app</a></div>
           <div class="settings-footer"><button id="signout" class="button" type="button" hidden>Sign out</button></div>
         </section>
         <section id="settings-security" role="tabpanel" aria-labelledby="tab-security" hidden>
@@ -280,7 +279,7 @@
       </section>
       <section id="user-create" hidden>
         <button class="text-button users-back" type="button" data-users-back>‹ All users</button><h3>Add user</h3>
-        <form id="user-create-form"><label class="field-label" for="user-email">Username</label><input id="user-email" type="text" autocomplete="off" autocapitalize="none" maxlength="254" required><label class="field-label" for="user-password">Initial password</label><input id="user-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required><p class="field-hint">8 characters minimum. Share securely with the user.</p><div class="dialog-actions"><button class="button" type="button" data-users-back>Cancel</button><button class="button primary" type="submit">Create account</button></div></form>
+        <form id="user-create-form"><label class="field-label" for="user-email">Username</label><input id="user-email" type="text" autocomplete="off" autocapitalize="none" maxlength="254" required><label class="field-label" for="user-password">Initial password</label><input id="user-password" type="password" autocomplete="new-password" minlength="10" maxlength="1024" required><p class="field-hint">10 characters minimum. Share securely with the user.</p><div class="dialog-actions"><button class="button" type="button" data-users-back>Cancel</button><button class="button primary" type="submit">Create account</button></div></form>
       </section>
       <p id="users-status" class="form-status" role="status" aria-live="polite"></p>
     </div>
@@ -322,9 +321,9 @@
     <form id="password-form">
       <div class="dialog-head"><h2 id="password-title">Change password</h2><button class="icon-button" type="button" data-close="password-dialog" aria-label="Close password settings"><svg class="icon"><use href="#i-close"/></svg></button></div>
       <label class="field-label" for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password" maxlength="1024" required>
-      <label class="field-label" for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required aria-describedby="new-password-hint">
-      <p id="new-password-hint" class="field-hint">At least 8 characters. Other devices will be signed out.</p>
-      <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required>
+      <label class="field-label" for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password" minlength="10" maxlength="1024" required aria-describedby="new-password-hint">
+      <p id="new-password-hint" class="field-hint">At least 10 characters. Other devices will be signed out.</p>
+      <label class="field-label" for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="1024" required>
       <p id="password-status" class="form-status" role="status" aria-live="polite"></p>
       <div class="dialog-actions"><button class="button" type="button" data-close="password-dialog">Cancel</button><button id="password-submit" class="button primary" type="submit">Update Password</button></div>
     </form>
@@ -514,10 +513,10 @@
   <script src="/admin-preview.js?v=61b184cccdef"></script>
   <script src="/local-songs.js?v=2ca6499f8278"></script>
   <script src="/admin-assets/qrcode.js?v=79ec86f82856"></script>
-  <script src="/account-settings.js?v=2640d5acd66f"></script>
+  <script src="/account-settings.js?v=14c2b1e635d4"></script>
   <script src="/dialogs.js?v=f7f8ef5eea37"></script>
   <script src="/admin-reports.js?v=815c3a6017ce"></script>
   <script src="/admin-setlists.js?v=457aed10d180"></script>
-  <script src="/admin.js?v=62b9da8f2216"></script>
+  <script src="/admin.js?v=e90cca0d33ec"></script>
 </body>
 </html>

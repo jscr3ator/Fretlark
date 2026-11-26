@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/favicon.svg?v=4"><meta name="theme-color" content="#1c1c1e">
-  <script>try{var t=localStorage.getItem("fretphrase-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script src="/theme-init.js?v=e2170b9c81e0"></script>
   <title>Fretlark</title>
   <meta name="description" content="Edit scores, share songs, and practise music in Fretlark.">
   <link rel="stylesheet" href="./styles.css?v=334e3f0ab777">
@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="./print.css?v=8aa018c236dd">
 </head>
 <body>
-<script>if(new URLSearchParams(location.search).has("share"))document.body.classList.add("viewer","hide-palette","hide-inspector");</script>
+<script src="viewer-init.js?v=82c38f84cf6d"></script>
   <dialog class="shortcuts-dialog" id="add-track-dialog"><form id="add-track-form"><div class="dialog-header"><h2>Add track</h2><button class="icon-button" type="button" id="btn-close-add-track" aria-label="Close add track"><svg class="icon " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div><label class="field-label" for="new-track-name">Track name</label><input class="text-input" id="new-track-name" required value="Acoustic Guitar"><label class="field-label" for="new-track-type">Instrument type</label><select class="text-input" id="new-track-type"><option value="guitar">Acoustic guitar</option><option value="electric">Electric guitar</option><option value="bass">Electric bass</option><option value="seven">7-string guitar</option><option value="piano">Piano / standard notation</option><option value="drums">Drum kit</option></select><p class="dialog-note" style="margin-top:14px">Set the instrument, tuning, capo and pan in the Track inspector after adding it.</p><div class="dialog-footer"><button class="button button-primary" type="submit">Create track</button></div></form></dialog>
   <dialog class="shortcuts-dialog new-song-dialog" id="new-song-dialog" aria-labelledby="new-song-heading"><form id="new-song-form"><div class="dialog-header"><div><span class="dialog-kicker">NEW SONG</span><h2 id="new-song-heading">Set up your score</h2></div><button class="icon-button" type="button" id="btn-close-new-song" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
     <div class="form-grid"><div class="span-2"><label class="field-label" for="new-song-title">Title</label><input class="text-input" id="new-song-title" value="Untitled" maxlength="180" autocomplete="off"></div>
@@ -285,7 +285,7 @@
   <script src="./model.js?v=12be3363a1b4"></script>
   <script src="./section-clipboard.js?v=b0d48eed86ad"></script>
   <script src="/dialogs.js?v=f7f8ef5eea37"></script>
-  <script src="./app.js?v=ffa3444ac32e"></script>
+  <script src="./app.js?v=fa4839e13dfc"></script>
   <script src="./print.js?v=882c7283a981"></script>
   <!-- BACKING-TRACK: backing track panel (loads after app.js for window.studio) -->
   <script src="./backing-track.js?v=38c3835e79dc"></script>

@@ -619,8 +619,8 @@ fun PasswordSheet(mfaEnabled: Boolean, elevate: ElevateController, onClose: () -
             error = "Enter your current password."
             return
         }
-        if (next.length < 8 || next.length > 1024) {
-            error = "Use a password of 8 to 1024 characters."
+        if (next.length < 10 || next.length > 1024) {
+            error = "Use a password of 10 to 1024 characters."
             return
         }
         if (next != confirm) {

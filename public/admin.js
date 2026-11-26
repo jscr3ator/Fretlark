@@ -82,6 +82,7 @@
 
   function readSession(session) {
     sessionState.mailEnabled = session.mailEnabled === true;
+    sessionState.turnstileSiteKey = typeof session.turnstileSiteKey === 'string' ? session.turnstileSiteKey : null;
     sessionState.contactEmail = session.contactEmail || null;
     sessionState.contactEmailAddress = session.contactEmailAddress || null;
     sessionState.contactEmailVerified = session.contactEmailVerified === true;
@@ -217,6 +218,7 @@
     $('auth-switch-label').textContent = registering ? 'Already have an account?' : authMode === 'login' ? 'New to Fretlark?' : '';
     $('auth-toggle').textContent = authMode === 'login' ? 'Create an account' : registering ? 'Sign in' : 'Back to sign in';
     $('auth-switch').hidden = authMode === 'login' && !registrationOpen;
+    showTurnstile(registering);
     const signupEmail = registering && sessionState.mailEnabled;
     const emailField = signupEmail || forgotEmail;
     $('auth-email').hidden = reset; $('auth-email').required = !reset;
@@ -241,7 +243,7 @@
     $('password-hint').hidden = !newPassword;
     const copy = reset ? authCopy.reset : forgotEmail ? authCopy.forgotEmail : forgot ? authCopy.forgot : registering ? (sessionState.mailEnabled ? authCopy.register : authCopy.registerNoMail) : authCopy.login;
     const current = $('access-message').textContent;
-    // Keep a server message (legacy note, connection error) when returning to sign in.
+    // Keep a server message (such as a connection error) when returning to sign in.
     if (copy !== authCopy.login || !current || Object.values(authCopy).includes(current)) $('access-message').textContent = copy;
     status('auth-status', '');
     if (lastAuthMode !== null && lastAuthMode !== authMode) animateAuthSwap($('auth-form'));
@@ -699,7 +701,6 @@
       $('signout').hidden = !passwordAccount;
       $('delete-account-open').disabled = session.owner === true;
       $('delete-account-detail').textContent = session.owner === true ? 'The owner account cannot be deleted. Hand over ownership first.' : 'Permanently delete your account and every song saved to your Library. Songs saved locally stay in this browser.';
-      $('migration').hidden = !(passwordAccount && session.legacyMigrationAvailable);
 
       if (resetToken) {
         showAccess();
@@ -709,10 +710,7 @@
       if (passwordAccount && nextPath) { location.replace(nextPath); return; }
       if (!passwordAccount) {
         showAccess();
-        $('legacy-access-note').hidden = !session.legacyMigrationAvailable;
-        $('access-message').textContent = session.authType === 'legacy'
-          ? 'Your older sign-in is available. Create or sign in to a password account to manage your library and claim those songs.'
-          : !registrationOpen ? 'Registration is currently closed.'
+        $('access-message').textContent = !registrationOpen ? 'Registration is currently closed.'
           : nextPath?.startsWith('/editor/') ? `Create a free account to save your song to your Library.` : '';
         setAuthMode(params.has('signup') && !signupShown ? 'register' : authMode);
         signupShown = true;
@@ -764,7 +762,7 @@
 
   async function submitRecovery(username, password) {
     const submit = $('auth-submit');
-    if (password.length < 8 || password.length > 1024) return status('auth-status', 'Use a password between 8 and 1024 characters.', true);
+    if (password.length < 10 || password.length > 1024) return status('auth-status', 'Use a password between 10 and 1024 characters.', true);
     if (password !== $('auth-password2').value) return status('auth-status', 'The passwords do not match.', true);
     submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
     submit.textContent = 'Resetting…';
@@ -809,7 +807,7 @@
 
   async function submitNewPassword(password) {
     const submit = $('auth-submit');
-    if (password.length < 8 || password.length > 1024) return status('auth-status', 'Use a new password of 8 to 1024 characters.', true);
+    if (password.length < 10 || password.length > 1024) return status('auth-status', 'Use a new password of 10 to 1024 characters.', true);
     if (password !== $('auth-password2').value) return status('auth-status', 'The passwords do not match.', true);
     submit.disabled = true; $('auth-toggle').disabled = true; status('auth-status', '');
     submit.textContent = 'Saving…';
@@ -828,6 +826,31 @@
     }
   }
 
+  // Optional human check on sign-up (Cloudflare Turnstile), only when the server has a site key.
+  let turnstileWidget = null, turnstileLoading = null;
+  function loadTurnstile() {
+    turnstileLoading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async = true; script.onload = resolve; script.onerror = () => { turnstileLoading = null; reject(new Error('The human check could not load.')); };
+      document.head.append(script);
+    });
+    return turnstileLoading;
+  }
+  function showTurnstile(registering) {
+    const box = $('auth-turnstile'), siteKey = sessionState.turnstileSiteKey;
+    box.hidden = !(registering && siteKey);
+    if (box.hidden || turnstileWidget !== null) return;
+    loadTurnstile().then(() => {
+      if (turnstileWidget === null && window.turnstile) turnstileWidget = window.turnstile.render(box, {sitekey: siteKey, theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'auto', 'response-field': false});
+    }).catch(error => status('auth-status', error.message, true));
+  }
+  function turnstileToken() {
+    if (!sessionState.turnstileSiteKey || turnstileWidget === null || !window.turnstile) return undefined;
+    return window.turnstile.getResponse(turnstileWidget) || undefined;
+  }
+  function resetTurnstile() { if (turnstileWidget !== null && window.turnstile) window.turnstile.reset(turnstileWidget); }
+
   async function submitAuth(event) {
     event.preventDefault();
     const form = $('auth-form');
@@ -837,8 +860,8 @@
     if (authMode === 'forgot' && sessionState.mailEnabled && forgotMethod === 'email') return submitForgotRequest(identifier);
     if (authMode === 'forgot') return submitRecovery(identifier, password);
     if (authMode === 'reset') return submitNewPassword(password);
-    if (authMode === 'register' && (password.length < 8 || password.length > 1024)) {
-      status('auth-status', 'Use a password between 8 and 1024 characters.', true);
+    if (authMode === 'register' && (password.length < 10 || password.length > 1024)) {
+      status('auth-status', 'Use a password between 10 and 1024 characters.', true);
       return;
     }
     if (authMode === 'register' && password !== $('auth-password2').value) {
@@ -853,8 +876,9 @@
     status('auth-status', '');
     try {
       const payload = authMode === 'register'
-        ? (sessionState.mailEnabled ? {email: identifier, password} : {username: identifier, password})
+        ? {...(sessionState.mailEnabled ? {email: identifier, password} : {username: identifier, password}), turnstile: turnstileToken()}
         : {email: identifier, password};
+      if (authMode === 'register' && sessionState.turnstileSiteKey && !payload.turnstile) throw new Error('Complete the check that you are human, then try again.');
       const result=await api(`auth/${authMode}`, json('POST', payload));
       if(result.mfa_required){
         authChallenge=result.challenge;$('auth-password').value='';$('auth-form').hidden=true;$('auth-switch').hidden=true;$('auth-factor-form').hidden=false;animateAuthSwap($('auth-factor-form'));
@@ -865,6 +889,7 @@
       if (nextPath) { location.replace(nextPath); return; }
       await init();
     } catch (error) {
+      if (authMode === 'register') resetTurnstile();
       status('auth-status', error.message || 'Could not sign in.', true);
     } finally {
       submit.disabled = false;
@@ -877,7 +902,7 @@
     event.preventDefault();
     if(savingPassword) return;
     const current_password=$('current-password').value,new_password=$('new-password').value;
-    if(new_password.length<8 || new_password.length>1024) return status('password-status','Use a password of 8 to 1024 characters.',true);
+    if(new_password.length<10 || new_password.length>1024) return status('password-status','Use a password of 10 to 1024 characters.',true);
     if(new_password!==$('confirm-password').value) return status('password-status','New passwords do not match.',true);
     savingPassword=true;
     const controls=[...$('password-form').querySelectorAll('button,input')];
@@ -945,25 +970,6 @@
       toast(error.message || 'Could not sign out.', true);
     } finally {
       $('signout').disabled = false;
-    }
-  }
-
-  async function claimLegacyLessons() {
-    const button = $('claim-lessons');
-    button.disabled = true;
-    try {
-      const result = await api('auth/claim', {method: 'POST'});
-      $('migration').hidden = true;
-      const session = await api('session');
-      $('migration').hidden = !(session.admin && session.authType === 'password' && session.legacyMigrationAvailable);
-      if (await loadLessons()) {
-        const moved = Number(result.moved) || 0;
-        toast(moved ? `${moved} older ${moved === 1 ? 'song' : 'songs'} moved. Shared links still work.` : 'Your library is up to date.');
-      }
-    } catch (error) {
-      toast(error.message || 'Could not claim older songs.', true);
-    } finally {
-      button.disabled = false;
     }
   }
 
@@ -1568,7 +1574,6 @@
   $('signout').addEventListener('click', signOut);
   $('password-open').addEventListener('click',()=>{closeDialog('account-dialog');status('password-status','');openDialog('password-dialog','current-password');});
   $('password-form').addEventListener('submit',changePassword);
-  $('claim-lessons').addEventListener('click', claimLegacyLessons);
   $('retry-access').addEventListener('click', init);
   $('retry-library').addEventListener('click', loadLessons);
   $('lesson-list').addEventListener('click', onLessonAction);

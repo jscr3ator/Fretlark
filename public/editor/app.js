@@ -1315,7 +1315,7 @@
     try{window.LocalSongs?.move('guest',localOwner);}catch{}
     try{const raw=localStorage.getItem(GUEST_DRAFT+':workspace');if(!raw)return false;sessionStorage.setItem(draftKey+':workspace',raw);localStorage.removeItem(GUEST_DRAFT+':workspace');return true;}catch{return false;}
   }
-  function unavailable(message){busy(false);status('Song unavailable');$('lesson-badge').textContent='Unavailable';const hint=$('score-empty-hint');hint.hidden=false;hint.style.display='flex';hint.innerHTML='<strong>Song unavailable</strong><span></span><button class="button" type="button" onclick="location.reload()">Try again</button>';hint.querySelector('span').textContent=message;}
+  function unavailable(message){busy(false);status('Song unavailable');$('lesson-badge').textContent='Unavailable';const hint=$('score-empty-hint');hint.hidden=false;hint.style.display='flex';hint.innerHTML='<strong>Song unavailable</strong><span></span><button class="button" type="button">Try again</button>';hint.querySelector('span').textContent=message;hint.querySelector('button').addEventListener('click',()=>location.reload());}
   async function importCloud(bytes,name,metadata){
     if(/\.atex$/i.test(name)){const parsed=quietLoad(()=>at.importer.ScoreLoader.loadAlphaTex(new TextDecoder().decode(bytes),api.settings));bytes=new at.exporter.Gp7Exporter().export(parsed);}
     const before=score;await importBytes(bytes,name,metadata);if(score===before)throw Error('The file could not be opened. Ask the owner to replace the file.');

@@ -84,6 +84,8 @@ caddy reverse-proxy --from tabs.example.com --to 127.0.0.1:8787
 
 Caddy gets a certificate automatically. If the proxy is on the same machine, you can bind Fretlark to localhost only by changing the compose port to `"127.0.0.1:8787:8787"`.
 
+Put Fretlark behind HTTPS before other people use it. The container runs `wrangler dev`, which serves plain HTTP; sign-in uses a `Secure` cookie, so it only works over HTTPS (or on `localhost`). Have the proxy redirect HTTP to HTTPS and, once everything works, send a `Strict-Transport-Security` header (Caddy redirects by default).
+
 ### Backups
 
 Everything is in the `fretlark-data` volume: the SQLite database under `/data/v3/d1` and the song files under `/data/v3/r2`. Copying the whole volume is the simplest consistent backup. Stop the container first:
@@ -205,6 +207,11 @@ On Cloudflare, plain settings live in the `vars` block of `wrangler.jsonc` and s
 | `MFA_ENCRYPTION_KEY` | secret | All | created for you | Base64 of 32 random bytes. **Never change it** or two-factor logins stop working |
 | `STORAGE_LIMIT_MB` | var | All | `"500"` | Cloud storage per account in MB |
 | `BACKUP_BUCKET` | R2 binding | Cloudflare only | none | Turns on the daily backup |
+| `FORCE_HTTPS` | var | Cloudflare only | off | `"true"` redirects `http://` to `https://` and sends HSTS. Leave it off behind your own proxy, which should do this itself |
+| `PASSWORD_BREACH_CHECK` | var | All | off | `"true"` refuses new passwords found in known breaches (sends only a 5-character hash prefix to Have I Been Pwned) |
+| `TURNSTILE_SITE_KEY` | var | All | none | With `TURNSTILE_SECRET`, adds a Cloudflare Turnstile human check to sign-up |
+| `TURNSTILE_SECRET` | secret | All | none | The Turnstile widget's secret key |
+| `IP_HASH_SECRET` | secret | All | derived from `MFA_ENCRYPTION_KEY` | Key for the IP pseudonyms stored with reports and view counts |
 
 After editing `wrangler.jsonc`, run `npm run deploy`. After editing `.env`, run `docker compose up -d`.
 

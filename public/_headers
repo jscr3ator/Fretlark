@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://challenges.cloudflare.com; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' data: blob: https://*.mzstatic.com https://*.dzcdn.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' blob: data:; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
@@ -19,6 +19,8 @@
   Cross-Origin-Embedder-Policy: credentialless
 
 /editor/video-convert-worker.js
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://challenges.cloudflare.com https://cdn.jsdelivr.net; worker-src 'self' blob:; connect-src 'self' blob: data: https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.mzstatic.com https://*.dzcdn.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' blob: data:; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: credentialless
 
@@ -29,3 +31,5 @@
   Content-Type: application/vnd.android.package-archive
   Content-Disposition: attachment; filename="fretlark-android.apk"
   Cache-Control: no-cache
+
+# The video converter loads ffmpeg from jsDelivr.

@@ -19,24 +19,31 @@ crypto.subtle.deriveBits=(algorithm,...args)=>{
 const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('drizzle/0000_giant_donald_blake.sql','utf8'));sql.exec(readFileSync('drizzle/0001_teacher_accounts.sql','utf8'));sql.exec(readFileSync('drizzle/0002_library_owner_index.sql','utf8'));sql.exec(readFileSync('drizzle/0003_lesson_views.sql','utf8'));sql.exec(readFileSync('drizzle/0005_account_security.sql','utf8'));sql.exec(readFileSync('drizzle/0006_two_factor.sql','utf8'));sql.exec(readFileSync('drizzle/0007_email_verification.sql','utf8'));sql.exec(readFileSync('drizzle/0008_recovery_keys.sql','utf8'));sql.exec(readFileSync('drizzle/0009_contact_email_password_reset.sql','utf8'));sql.exec(readFileSync('drizzle/0010_one_account_per_email.sql','utf8'));sql.exec(readFileSync('drizzle/0011_source_format.sql','utf8'));sql.exec(readFileSync('drizzle/0012_song_reports.sql','utf8'));sql.exec(readFileSync('drizzle/0013_account_violations.sql','utf8'));sql.exec(readFileSync('drizzle/0014_setlists.sql','utf8'));sql.exec(readFileSync('drizzle/0015_view_visitors.sql','utf8'));
 const objects=new Map();
 const env={REGISTRATION_OPEN:'true',ADMIN_EMAIL:'teacher@example.test',DB:{async batch(statements){sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(/^SELECT/i.test(statement.query)?await statement.all():await statement.run());sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){let values=[];return {query,bind(...args){values=args;return this;},async first(){return sql.prepare(query).get(...values)||null;},async all(){return {results:sql.prepare(query).all(...values)};},async run(){const r=sql.prepare(query).run(...values);return {meta:{changes:Number(r.changes)}};}};}},BUCKET:{async put(key,body){objects.set(key,new Uint8Array(await new Response(body).arrayBuffer()));},async get(key){const b=objects.get(key);return b?{body:b,size:b.length}:null;},async delete(key){objects.delete(key);}}};
-const teacher={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
+// Every request signs in with a real password session (the old gateway identity headers are gone).
+const teacher={cookie:''};
+const spoofedIdentity={'oai-authenticated-user-id':'teacher-id','oai-authenticated-user-email':'teacher@example.test'};
 env.ASSETS={async fetch(request){assert.equal(new URL(request.url).pathname,'/editor/demo.gp');return new Response(readFileSync('public/editor/demo.gp'),{headers:{'Content-Type':'application/octet-stream','Cache-Control':'public, max-age=3600'}});}};
 assert.deepEqual(readFileSync('public/editor/demo.gp'),Buffer.from(referenceScore,'base64'),'Static demo must preserve the reference GP');
 async function call(path,{method='GET',body,headers=teacher,raw=false}={}){const response=await handleApi(new Request('https://scores.test/api/'+path,{method,headers:{...(method!=='GET'?{origin:'https://scores.test'}:{}),...headers,...(body&&!(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body instanceof FormData||typeof body==='string'?body:body?JSON.stringify(body):undefined}),env);return {status:response.status,cookie:response.headers.get('set-cookie'),data:raw?new Uint8Array(await response.arrayBuffer()):await response.json()};}
 function upload(version=0,title='Lantern Road',trackCount=5){const form=new FormData();form.set('file',new File([Buffer.from(referenceScore,'base64')],'reference.gp'));for(const [key,value]of Object.entries({title,artist:'Fretlark',notes:'Loop bars 7–14 at 75%.',track_count:trackCount,bar_count:54,tempo:120,version}))form.set(key,value);return form;}
+{const first=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.200'},body:{email:'teacher',password:'teacher strong password'}});assert.equal(first.status,200);teacher.cookie=first.cookie.split(';')[0];}
+// The main test account has the large (500 MB) cloud limit; builds with paid plans give it Plus.
+if(sql.prepare('PRAGMA table_info(teachers)').all().some(column=>column.name==='plan_until'))sql.prepare("UPDATE teachers SET plan_until=? WHERE email='teacher'").run(Date.now()+3650*864e5);
+{const second=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.201'},body:{email:'teacher-two',password:'teacher two password'}});assert.equal(second.status,200);var secondTeacher={cookie:second.cookie.split(';')[0]};}
 assert.equal((await call('session',{headers:{}})).data.admin,false);
+assert.equal((await call('session',{headers:spoofedIdentity})).data.admin,false,'Gateway identity headers never sign anyone in');
 assert.equal((await call('session')).data.admin,true);
 assert.equal((await call('admin/lessons',{headers:{}})).status,403);
 assert.equal((await call('admin/demo',{headers:{}})).status,403);
 assert.equal((await call('demo',{headers:{},raw:true})).data.length>0,true,'Guests can open the demo score');
-assert.equal((await call('admin/lessons',{headers:{...teacher,'oai-authenticated-user-email':'student@test'}})).status,403);
+assert.equal((await call('admin/lessons',{headers:spoofedIdentity})).status,403);
 assert.equal((await call('admin/lessons',{method:'POST',body:upload(),headers:{...teacher,origin:'https://attacker.test'}})).status,403);
 let result=await call('admin/lessons',{method:'POST',body:upload()});assert.equal(result.status,201);let lesson=result.data;
 assert.equal(lesson.title,'Lantern Road');assert.equal(lesson.shared,0);assert.equal('file_key' in lesson,false);assert.equal(objects.size,1);
 assert.equal((await call('admin/lessons')).data.lessons.length,1);
 assert.deepEqual((await call(`admin/lessons/${lesson.id}/file`,{raw:true})).data,new Uint8Array(Buffer.from(referenceScore,'base64')));
-assert.equal((await call(`admin/lessons/${lesson.id}`,{headers:{...teacher,'oai-authenticated-user-id':'other-id'}})).status,404);
-assert.equal((await call(`admin/lessons/${lesson.id}/artwork`,{headers:{...teacher,'oai-authenticated-user-id':'other-id'}})).status,404,'Artwork metadata requires ownership');
+assert.equal((await call(`admin/lessons/${lesson.id}`,{headers:secondTeacher})).status,404);
+assert.equal((await call(`admin/lessons/${lesson.id}/artwork`,{headers:secondTeacher})).status,404,'Artwork metadata requires ownership');
 assert.equal((await call(`admin/lessons/${lesson.id}/artwork`,{headers:{}})).status,403,'Artwork lookup requires authentication');
 assert.equal((await call('shared/'+'0'.repeat(64),{headers:{}})).status,404);
 lesson=(await call(`admin/lessons/${lesson.id}/share`,{method:'POST',body:{}})).data;let token=lesson.share_token;assert.match(token,/^[a-f0-9]{64}$/);
@@ -116,7 +123,7 @@ assert.equal((await call(`admin/lessons/${lesson.id}`,{method:'DELETE'})).status
  assert.equal((await call(`admin/lessons/${otherSong.id}`,{method:'DELETE',headers:otherTeacher})).status,200);
  console.log('PASS: accurate per-visitor daily view counts, bot/owner/revoked exclusions, per-owner stats and cleanup.');
 }
-const rawBytes=new Uint8Array([1,2,3,4]);
+const rawBytes=new Uint8Array([0x50,0x4b,3,4]); // the start of a ZIP, as in a GP7 file
 const rawHeaders={...teacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:rawBytes.length,title:'Streamed'}))};
 let streamed=await handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:rawHeaders,body:rawBytes}),env);
 assert.equal(streamed.status,201);const streamedLesson=await streamed.json();
@@ -157,7 +164,7 @@ const originalKey=sql.prepare('SELECT file_key FROM lessons WHERE id=?').get(str
 const tooLargeReplacement={...rawHeaders,'x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:5,version:2}))};
 const storedVersion=sql.prepare('SELECT version FROM lessons WHERE id=?').get(streamedLesson.id).version;
 tooLargeReplacement['x-fretline-metadata']=encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:5,version:storedVersion}));
-assert.equal((await handleApi(new Request(`https://scores.test/api/admin/lessons/${streamedLesson.id}/file`,{method:'PUT',headers:tooLargeReplacement,body:new Uint8Array(5)}),env)).status,507);
+assert.equal((await handleApi(new Request(`https://scores.test/api/admin/lessons/${streamedLesson.id}/file`,{method:'PUT',headers:tooLargeReplacement,body:new Uint8Array([0x50,0x4b,3,4,0])}),env)).status,507);
 assert.equal(sql.prepare('SELECT file_key FROM lessons WHERE id=?').get(streamedLesson.id).file_key,originalKey,'Rejected replacement preserves original file');
 assert.equal((await call(`admin/lessons/${successful.id}`,{method:'DELETE'})).status,200);
 sql.prepare('DELETE FROM lessons WHERE id=?').run('quota-blocker');
@@ -166,6 +173,23 @@ assert.equal((await quotaUpload()).status,507);
 sql.prepare("DELETE FROM lessons WHERE id LIKE 'count-blocker-%'").run();
 assert.equal((await call('admin/storage',{headers:{}})).status,403);
 assert.equal((await call(`admin/lessons/${streamedLesson.id}`,{method:'DELETE'})).status,200);
+// The server checks the file's first bytes, not just its name.
+{const sniff=async(name,bytes)=>{const form=upload();form.set('file',new File([bytes],name));return (await call('admin/lessons',{method:'POST',body:form})).status;};
+ const latin=text=>new TextEncoder().encode(text);
+ assert.equal(await sniff('evil.gp',latin('MZ\x90\x00 this is a Windows program')),415,'A renamed program is refused');
+ assert.equal(await sniff('page.gp',latin('<html><script>alert(1)</script>')),415,'A renamed web page is refused');
+ assert.equal(await sniff('zip.gp5',new Uint8Array([0x50,0x4b,3,4,0,0])),415,'A GP5 name needs a GP5 header');
+ assert.equal(await sniff('song.musicxml',latin('not xml at all')),415,'MusicXML must look like XML');
+ assert.equal(await sniff('song.atex',new Uint8Array([0,1,2,3])),415,'alphaTex must be text');
+ const gp5=new Uint8Array(32);gp5[0]=24;gp5.set(latin('FICHIER GUITAR PRO v5.00'),1);
+ for(const [name,bytes] of [['old.gp5',gp5],['old.gpx',latin('BCFZ0000')],['song.mxl',new Uint8Array([0x50,0x4b,3,4,0])],['song.xml',latin('﻿<?xml version="1.0"?><score-partwise/>')],['song.musicxml',latin('<!DOCTYPE score-partwise><score-partwise/>')],['song.atex',latin('\\title "Ok" . 3.3 4.3')]]){
+  const status=await sniff(name,bytes);assert.equal(status,201,`${name} should be accepted`);
+ }
+ const utf16=new Uint8Array([0xff,0xfe,...[...'<?xml version="1.0"?><score-partwise/>'].flatMap(c=>[c.charCodeAt(0),0])]);
+ assert.equal(await sniff('wide.xml',utf16),201,'UTF-16 MusicXML is accepted');
+ for(const row of sql.prepare("SELECT id,version FROM lessons WHERE title IN ('old','song','wide') AND owner_id=(SELECT id FROM teachers WHERE email='teacher')").all())await call(`admin/lessons/${row.id}`,{method:'DELETE'});
+ console.log('PASS: uploads are checked by content, not just by file name.');
+}
 const invalid=upload();invalid.set('file',new File(['bad'],'file.exe'));assert.equal((await call('admin/lessons',{method:'POST',body:invalid})).status,400);
 const oversizedUpload=new FormData();oversizedUpload.set('file',new File([new Uint8Array(30*1024*1024+65537)],'large.gp'));
 // Materialize the multipart fixture so cancelling an oversized request does not trip Node 24's FormData encoder race.
@@ -173,21 +197,16 @@ const oversizedBody=new Response(oversizedUpload);
 const oversizedRequest=new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:{origin:'https://scores.test',...teacher,'Content-Type':oversizedBody.headers.get('Content-Type')},body:new Uint8Array(await oversizedBody.arrayBuffer())});
 assert.equal(oversizedRequest.headers.get('content-length'),null);
 assert.equal((await handleApi(oversizedRequest,env)).status,413);
-// A legacy owner must explicitly claim their lessons from an authenticated new account.
-let legacyLesson=(await call('admin/lessons',{method:'POST',body:upload()})).data;
-legacyLesson=(await call(`admin/lessons/${legacyLesson.id}/share`,{method:'POST',body:{}})).data;
-const legacyToken=legacyLesson.share_token;
+// A new account starts empty and only ever sees its own songs.
 const register=await call('auth/register',{method:'POST',headers:{},body:{email:'new',password:'correct horse battery staple'}});
 assert.equal(register.status,200);assert.match(register.cookie,/HttpOnly; Secure; SameSite=Lax/);
 const newTeacher={cookie:register.cookie.split(';')[0]};
-assert.equal((await call('session',{headers:newTeacher})).data.authType,'password');
 assert.equal((await call('admin/lessons',{headers:newTeacher})).data.lessons.length,0);
-assert.equal((await call(`admin/lessons/${legacyLesson.id}`,{headers:newTeacher})).status,404);
-assert.equal((await call('auth/claim',{method:'POST',headers:newTeacher})).status,403);
-const bothAccounts={...newTeacher,...teacher};
-assert.equal((await call('session',{headers:bothAccounts})).data.legacyMigrationAvailable,true);
-assert.deepEqual((await call('auth/claim',{method:'POST',headers:bothAccounts})).data,{ok:true,moved:1});
-assert.equal((await call('session',{headers:bothAccounts})).data.legacyMigrationAvailable,false);
+assert.equal((await call('auth/claim',{method:'POST',headers:newTeacher})).status,404,'The old claim action is gone');
+let legacyLesson=(await call('admin/lessons',{method:'POST',body:upload(),headers:newTeacher})).data;
+legacyLesson=(await call(`admin/lessons/${legacyLesson.id}/share`,{method:'POST',body:{},headers:newTeacher})).data;
+const legacyToken=legacyLesson.share_token;
+assert.equal((await call('session',{headers:newTeacher})).data.authType,'password');
 assert.equal((await call(`shared/${legacyToken}`,{headers:{}})).status,200);
 assert.equal((await call('admin/lessons',{headers:newTeacher})).data.lessons.length,1);
 const other=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.2'},body:{email:'other',password:'another strong password'}});
@@ -198,7 +217,7 @@ async function previewPage(headers={},suffix=''){
  return worker.fetch(new Request(`https://scores.test/editor/player.html?lesson=${legacyLesson.id}&preview=1${suffix}`,{headers}),previewEnv);
 }
 assert.equal((await previewPage()).status,403);
-assert.equal((await previewPage(teacher)).status,403,'Spoofed legacy identity cannot open previews');
+assert.equal((await previewPage(spoofedIdentity)).status,403,'Spoofed gateway identity cannot open previews');
 assert.equal((await previewPage(otherTeacher)).status,404,'Another teacher cannot open the preview');
 assert.equal((await previewPage({},'&share='+legacyToken)).status,403,'Adding a public token does not bypass private-preview authentication');
 const ownedPreview=await previewPage(newTeacher);
@@ -211,7 +230,7 @@ assert.equal((await call(`admin/lessons/${legacyLesson.id}/file`,{headers:otherT
 assert.equal((await worker.fetch(new Request(`https://scores.test/editor/player.html?share=${legacyToken}`),previewEnv)).status,200,'Public-link player remains available');
 assert.equal((await call(`admin/lessons/${legacyLesson.id}`,{headers:otherTeacher})).status,404);
 assert.equal((await call(`admin/lessons/${legacyLesson.id}`,{method:'DELETE',headers:otherTeacher})).status,404);
-assert.equal((await call('admin/lessons',{headers:teacher})).data.lessons.length,0);
+assert.ok(!(await call('admin/lessons',{headers:teacher})).data.lessons.some(row=>row.id===legacyLesson.id),'Songs stay with the account that uploaded them');
 let claimed=(await call(`admin/lessons/${legacyLesson.id}`,{headers:newTeacher})).data;
 const studentSettings={notation:'tab',show_mixer:false,show_track_controls:true,metronome:true,count_in:false,allow_print:false,allow_download:false};
 assert.equal((await call(`admin/lessons/${claimed.id}`,{method:'PATCH',headers:newTeacher,body:{version:claimed.version,student_settings:{...studentSettings,allow_download:'false'}}})).status,400);
@@ -252,7 +271,7 @@ assert.equal((await call('auth/password',{method:'POST',headers:{},body:password
 assert.equal((await call('auth/password',{method:'POST',headers:{...passwordTeacher,origin:'https://attacker.test'},body:passwordBody})).status,403);
 assert.equal((await call('auth/password',{method:'POST',headers:passwordTeacher,body:{...passwordBody,current_password:'wrong'}})).status,401);
 assert.equal((await call('auth/password',{method:'POST',headers:passwordTeacher,body:{...passwordBody,new_password:'short'}})).status,400);
-{const {validPassword}=await import('../lib/teacher-auth.mjs');assert.equal(validPassword('eightchr'),true,'8 characters is enough');assert.equal(validPassword('sevench'),false);}
+{const {validPassword}=await import('../lib/teacher-auth.mjs');assert.equal(validPassword('tencharsok'),true,'10 characters is enough');assert.equal(validPassword('ninechars'),false,'New passwords need at least 10 characters');}
 const changedPassword=await call('auth/password',{method:'POST',headers:passwordTeacher,body:passwordBody});
 assert.equal(changedPassword.status,200);assert.match(changedPassword.cookie,/HttpOnly; Secure; SameSite=Lax/);
 assert.equal((await call('session',{headers:passwordTeacher})).data.authenticated,false);
@@ -311,7 +330,7 @@ let plansTeacher={cookie:plans.cookie.split(';')[0]};
 assert.equal((await call('admin/storage',{headers:plansTeacher})).data.limit_bytes,500*1024*1024);
 const plansId=sql.prepare('SELECT id FROM teachers WHERE email=?').get('plans').id;
 sql.prepare("INSERT INTO lessons (id,owner_id,title,file_name,file_key,file_size,created_at,updated_at) VALUES (?,?,'Blocker','b.gp','scores/b',?,'x','x')").run('limit-blocker',plansId,500*1024*1024-2);
-const plansUpload=()=>handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:{...plansTeacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:4}))},body:new Uint8Array(4)}),env);
+const plansUpload=()=>handleApi(new Request('https://scores.test/api/admin/lessons',{method:'POST',headers:{...plansTeacher,origin:'https://scores.test','content-type':'application/octet-stream','x-fretline-metadata':encodeURIComponent(JSON.stringify({file_name:'raw.gp',file_size:4}))},body:new Uint8Array([0x50,0x4b,3,4])}),env);
 const blocked=await plansUpload();assert.equal(blocked.status,507);assert.match((await blocked.json()).error,/storage is full/);
 env.STORAGE_LIMIT_MB='600';assert.equal((await plansUpload()).status,201,'STORAGE_LIMIT_MB raises the limit');delete env.STORAGE_LIMIT_MB;
 console.log('PASS: per-account cloud storage limit.');
@@ -595,6 +614,9 @@ for(let i=0;i<30;i++){
  assert.equal(registered.status,200,'Thirty accounts may register behind one IP');
  wifiUsers.push(username);
 }
+{const scripted=[];for(let i=0;i<11;i++)scripted.push((await call('auth/register',{method:'POST',headers:wifiHeaders,body:{username:'wifi_script_'+i,email:'wifi_script_'+i+'@example.test',password:wifiPassword}})).status);
+ assert.deepEqual(scripted.slice(0,10),Array(10).fill(200));assert.equal(scripted[10],429,'One IP cannot create more than 40 accounts an hour');
+ assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:'wifi_script_0',password:wifiPassword}})).status,200,'The sign-up cap never blocks sign-in');}
 const classroomLogins=await Promise.all(wifiUsers.map(username=>call('auth/login',{method:'POST',headers:wifiHeaders,body:{username,email:username+'@example.test',password:wifiPassword}})));
 assert.equal(classroomLogins.filter(result=>result.status===200&&result.cookie).length,30,'Thirty concurrent classroom logins succeed');
 for(let i=0;i<12;i++)assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[0],password:wifiPassword}})).status,200,'Successful logins do not spend the account failure allowance');
@@ -615,3 +637,41 @@ for(let i=0;i<300;i++){
 assert.equal((await call('auth/login',{method:'POST',headers:wifiHeaders,body:{username:wifiUsers[3],password:wifiPassword}})).status,429,'IP flood cap still blocks attempt 301');
 assert.equal((await call('auth/login',{method:'POST',headers:{'cf-connecting-ip':'203.0.113.99'},body:{username:wifiUsers[3],password:wifiPassword}})).status,200,'IP cap never leaks into another network');
 console.log('PASS: 30 simultaneous shared-Wi-Fi logins, success refunds, alias/IP-resistant account caps, atomic parallel guesses, and 300-attempt network cap.');
+// Optional Turnstile check on sign-up: enforced only when both keys are set.
+{const realFetch=globalThis.fetch,seen=[];
+ globalThis.fetch=async(url,init)=>{seen.push(String(url));const token=init.body.get('response');return Response.json({success:token==='good-token'});};
+ try{
+  env.TURNSTILE_SITE_KEY='site-key';env.TURNSTILE_SECRET='secret-key';
+  assert.equal((await call('session',{headers:{}})).data.turnstileSiteKey,'site-key');
+  const ip=n=>({'cf-connecting-ip':'192.0.2.'+n});
+  assert.equal((await call('auth/register',{method:'POST',headers:ip(240),body:{username:'bot_one',email:'bot_one@example.test',password:'bot strong password'}})).status,400,'No token, no account');
+  assert.equal((await call('auth/register',{method:'POST',headers:ip(241),body:{username:'bot_two',email:'bot_two@example.test',password:'bot strong password',turnstile:'bad-token'}})).status,400,'A failed check is refused');
+  assert.equal((await call('auth/register',{method:'POST',headers:ip(242),body:{username:'human_one',email:'human_one@example.test',password:'human strong password',turnstile:'good-token'}})).status,200,'A passed check creates the account');
+  assert.ok(seen.every(url=>url==='https://challenges.cloudflare.com/turnstile/v0/siteverify'));
+  delete env.TURNSTILE_SECRET;
+  assert.equal((await call('session',{headers:{}})).data.turnstileSiteKey,null,'Without the secret the check is off');
+ }finally{globalThis.fetch=realFetch;delete env.TURNSTILE_SITE_KEY;delete env.TURNSTILE_SECRET;}
+ console.log('PASS: optional Turnstile check on sign-up.');}
+// Breach check: only a 5-character SHA-1 prefix is sent; failures never block sign-up.
+{const realFetch=globalThis.fetch,seen=[];const {createHash}=await import('node:crypto');
+ const leaked='password1234',suffix=createHash('sha1').update(leaked).digest('hex').toUpperCase().slice(5);
+ globalThis.fetch=async url=>{seen.push(String(url));if(String(url).includes('down'))throw new Error('offline');return new Response(`${suffix}:52\r\n0000000000000000000000000000000000A:0\r\n`);};
+ try{
+  env.PASSWORD_BREACH_CHECK='true';
+  const leakedSignup=await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.243'},body:{username:'leaky_one',email:'leaky_one@example.test',password:leaked}});
+  assert.equal(leakedSignup.status,400);assert.match(leakedSignup.data.error,/data breach/);
+  assert.match(seen[0],/^https:\/\/api\.pwnedpasswords\.com\/range\/[0-9A-F]{5}$/,'Only the hash prefix leaves the server');
+  assert.equal((await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.244'},body:{username:'safe_one',email:'safe_one@example.test',password:'a fresh unique phrase'}})).status,200);
+  globalThis.fetch=async()=>{throw new Error('offline');};
+  assert.equal((await call('auth/register',{method:'POST',headers:{'cf-connecting-ip':'192.0.2.245'},body:{username:'safe_two',email:'safe_two@example.test',password:leaked}})).status,200,'A breach-service outage never blocks sign-up');
+ }finally{globalThis.fetch=realFetch;delete env.PASSWORD_BREACH_CHECK;}
+ console.log('PASS: opt-in breached-password check with k-anonymity and fail-open.');}
+// IP pseudonyms are keyed: without the secret they cannot be recomputed from an address.
+{const {ipHash}=await import('../lib/ip-hash.mjs');const {createHash}=await import('node:crypto');
+ const plain=createHash('sha256').update('report:192.0.2.1').digest('hex');
+ assert.equal(await ipHash({},'report:192.0.2.1'),plain,'No secret: same as before');
+ const keyed=await ipHash({IP_HASH_SECRET:'one'},'report:192.0.2.1');
+ assert.notEqual(keyed,plain);assert.equal(keyed,await ipHash({IP_HASH_SECRET:'one'},'report:192.0.2.1'),'Stable for the same key');
+ assert.notEqual(keyed,await ipHash({IP_HASH_SECRET:'two'},'report:192.0.2.1'));
+ const derived=await ipHash({MFA_ENCRYPTION_KEY:'bWZh'},'report:192.0.2.1');assert.notEqual(derived,plain);assert.notEqual(derived,keyed);
+ console.log('PASS: keyed IP pseudonyms.');}

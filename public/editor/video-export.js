@@ -6,6 +6,8 @@
   const $ = id => document.getElementById(id);
   const at = window.alphaTab, Mux = window.FretlarkVideoMux;
   const lessonId = new URLSearchParams(location.search).get('lesson') || '';
+  const optionsForm = $('options');
+  if (typeof optionsForm?.addEventListener === 'function') optionsForm.addEventListener('submit', event => event.preventDefault());
   const FPS = 30, SAMPLE_RATE = 44100, MAX_SECONDS = 600; // whole songs up to 10 minutes
   const FORMATS = {
     reel: {w: 1080, h: 1920, name: 'Reel'},

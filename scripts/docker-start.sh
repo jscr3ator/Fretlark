@@ -44,6 +44,10 @@ if [ -n "$REGISTRATION_OPEN" ]; then set -- "$@" --var "REGISTRATION_OPEN:$REGIS
 if [ -n "${STORAGE_LIMIT_MB:-}" ]; then set -- "$@" --var "STORAGE_LIMIT_MB:$STORAGE_LIMIT_MB"; fi
 if [ -n "${OWNER_ACCOUNT_ID:-}" ]; then set -- "$@" --var "OWNER_ACCOUNT_ID:$OWNER_ACCOUNT_ID"; fi
 if [ -n "${MFA_ENCRYPTION_KEY:-}" ]; then set -- "$@" --var "MFA_ENCRYPTION_KEY:$MFA_ENCRYPTION_KEY"; fi
+for name in PASSWORD_BREACH_CHECK TURNSTILE_SITE_KEY TURNSTILE_SECRET IP_HASH_SECRET; do
+  eval "value=\${$name:-}"
+  if [ -n "$value" ]; then set -- "$@" --var "$name:$value"; fi
+done
 
 echo "Starting Fretlark on http://0.0.0.0:$PORT (data in $DATA_DIR)"
 exec npx --no-install wrangler "$@"

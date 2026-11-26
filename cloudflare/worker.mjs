@@ -1,7 +1,12 @@
 import {handleApi} from '../lib/lessons.mjs';
 import {backupLibrary} from '../lib/library-backup.mjs';
 
-const security = {'Content-Security-Policy':"frame-ancestors 'self'; object-src 'none'; base-uri 'self'",'X-Frame-Options':'SAMEORIGIN','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
+// Keep in sync with public/_headers, which covers static files the Worker never sees.
+const csp = (frames = "'self'", scripts = '') => `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://challenges.cloudflare.com${scripts}; worker-src 'self' blob:; connect-src 'self' blob: data:; img-src 'self' data: blob: https://*.mzstatic.com https://*.dzcdn.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' blob: data:; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors ${frames}`;
+const CSP = csp(), EMBED_CSP = csp('*'), LANDING_CSP = csp("'self'", ' https://cdn.jsdelivr.net');
+const security = {'Content-Security-Policy':CSP,'X-Frame-Options':'SAMEORIGIN','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
+const HSTS = 'max-age=31536000';
+const localHost = host => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(host) || host.endsWith('.localhost');
 // Payment webhooks come from the provider's servers, not a browser, and may burst.
 const rateLimitExempt = () => false;
 async function rateLimit(request, env) {
@@ -18,6 +23,14 @@ export default {
  async scheduled(_event,env) { if (env.BACKUP_BUCKET) await backupLibrary(env); },
  async fetch(request, env) {
   const url = new URL(request.url), headers = new Headers(request.headers);
+  // Set FORCE_HTTPS=true when the site is served over HTTPS (it is off by default for local and self-hosted setups).
+  // Cloudflare's edge reports the visitor's scheme in cf-visitor; local `wrangler dev` does not send it.
+  const visitor = request.headers.get('cf-visitor') || '';
+  const forceHttps = env.FORCE_HTTPS === 'true' && !localHost(url.hostname) && visitor !== '';
+  if (forceHttps && /"scheme":"http"/.test(visitor)) {
+   url.protocol = 'https:';
+   return new Response(null, {status: ['GET', 'HEAD'].includes(request.method) ? 301 : 308, headers: {Location: url.href, 'Cache-Control': 'no-store'}});
+  }
   // These identity headers are trusted only inside the retired Sites gateway.
   headers.delete('oai-authenticated-user-id');
   headers.delete('oai-authenticated-user-email');
@@ -36,7 +49,6 @@ export default {
    else response = await env.ASSETS.fetch(cleanRequest);
    response = new Response(response.body, response);
    response.headers.set('Cache-Control','private, no-store');
-   response.headers.set('Content-Security-Policy',"frame-ancestors 'self'");
    response.headers.set('X-Frame-Options','SAMEORIGIN');
   }
   else if(/^\/view\/[a-f0-9]{64}\/?$/.test(url.pathname)) {
@@ -57,11 +69,13 @@ export default {
   } else response = await env.ASSETS.fetch(cleanRequest);
   const result = new Response(response.body,response);
   for(const [key,value] of Object.entries(security)) result.headers.set(key,value);
+  if(forceHttps) result.headers.set('Strict-Transport-Security',HSTS);
+  if(url.pathname === '/') result.headers.set('Content-Security-Policy',LANDING_CSP);
   // Only the embed wrapper and the shared player inside it may be framed elsewhere.
   const privatePreview = url.pathname === '/editor/player.html' && (url.searchParams.has('lesson') || url.searchParams.has('preview'));
   const embedPlayer = url.pathname === '/editor/player.html' && url.searchParams.has('share') && url.searchParams.get('embed') === '1' && !privatePreview;
   if(/^\/embed\/[a-f0-9]{64}\/?$/.test(url.pathname) || embedPlayer) {
-   result.headers.set('Content-Security-Policy',"frame-ancestors *; object-src 'none'; base-uri 'self'");
+   result.headers.set('Content-Security-Policy',EMBED_CSP);
    result.headers.delete('X-Frame-Options');
   }
   // The video exporter uses the multi-threaded ffmpeg core when the page is cross-origin isolated.
