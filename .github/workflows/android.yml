@@ -47,7 +47,6 @@ jobs:
           FRETLARK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           FRETLARK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           FRETLARK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          FRETLARK_VERSION_CODE: ${{ github.run_number }}
         run: |
           ./gradlew --no-daemon assembleRelease
           mkdir -p out

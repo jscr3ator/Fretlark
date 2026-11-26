@@ -28,8 +28,10 @@ android {
         applicationId = "com.fretlark.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = (secret("FRETLARK_VERSION_CODE") ?: "1").toInt()
-        versionName = "1.1.1"
+        // The version code follows the version name (1.2.3 -> 10203), so every release installs as an
+        // update no matter which machine or workflow built it. Bump versionName for each release.
+        versionName = "1.1.2"
+        versionCode = versionName!!.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
         buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
         manifestPlaceholders["siteHost"] = siteHost
         // Plain http is only allowed when the app is built against a local dev server.
