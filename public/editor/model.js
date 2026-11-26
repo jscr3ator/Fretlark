@@ -31,11 +31,45 @@
     return 'z:'+(typeof btoa==='function'?btoa(binary):Buffer.from(bytes).toString('base64'));
   }
   function restore(json) {
+    if (typeof json !== 'string') {
+      // The importer can retain arrays. Keep history immutable across redo and later edits.
+      return at.model.JsonConverter.jsObjectToScore(structuredClone(json), settings);
+    }
     if(json.startsWith('z:')){
       const data=typeof atob==='function'?zip.strToU8(atob(json.slice(2)),true):new Uint8Array(Buffer.from(json.slice(2),'base64'));
       json=zip.strFromU8(zip.unzlibSync(data));
     }
     return at.model.JsonConverter.jsonToScore(json, settings);
+  }
+
+  // Most beats are identical across adjacent edits. Share their immutable undo data.
+  // Compare every serialized field, including notes linked across bars and tracks.
+  function historySnapshot(score, previous) {
+    return shareHistory(at.model.JsonConverter.scoreToJsObject(score), previous);
+  }
+  function shareHistory(value, previous) {
+    if (value === null || typeof value !== 'object') return value;
+    if (ArrayBuffer.isView(value)) {
+      const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      if (previous?.constructor === value.constructor && previous.byteLength === bytes.length) {
+        const old = new Uint8Array(previous.buffer, previous.byteOffset, previous.byteLength);
+        if (bytes.every((byte, i) => byte === old[i])) return previous;
+      }
+      return structuredClone(value);
+    }
+    const array = Array.isArray(value);
+    const prior = previous && typeof previous === 'object' && Array.isArray(previous) === array ? previous : null;
+    const copy = array ? [] : Object.create(null);
+    let equal = !!prior, count = 0;
+    const entries = array ? value.entries() : value instanceof Map ? value : Object.entries(value);
+    for (const [key, item] of entries) {
+      if (item === undefined && !array) continue;
+      const child = shareHistory(item === undefined ? null : item, prior?.[key]);
+      copy[key] = child;
+      equal &&= child === prior[key];
+      count++;
+    }
+    return equal && count === (array ? prior.length : Object.keys(prior).length) ? prior : copy;
   }
   function fingerprint(score) {
     // Fast change detector for mutate()'s no-op check (see app.js). It must differ when the
@@ -457,7 +491,7 @@
     if ('accent' in data) note.accentuated = data.accent ? m.AccentuationType.Normal : m.AccentuationType.None;
     if ('bend' in data) {
       const bend = Number(data.bend);
-      note.bendPoints = null; note.bendType = bend ? m.BendType.Bend : m.BendType.None;
+      note.bendPoints = null; note.maxBendPoint = null; note.bendType = bend ? m.BendType.Bend : m.BendType.None;
       if (bend) { note.addBendPoint(new m.BendPoint(0, 0)); note.addBendPoint(new m.BendPoint(60, bend)); }
     }
     if ('harmonic' in data) { note.harmonicType = Number(data.harmonic); note.harmonicValue = 12; }
@@ -664,14 +698,17 @@
     automation.type=automationType; automation.value=value;
     beat.automations.push(automation);
   }
-  function trackAutomations(score, trackIndex) {
+  function trackAutomations(score, trackIndex, onlyBar) {
     const track=score.tracks[trackIndex];
     if (!Number.isInteger(trackIndex) || !track) throw Error('Select a track first.');
     const result=[];
-    for (const staff of track.staves) for (const [barIndex,bar] of staff.bars.entries()) for (const voice of bar.voices) for (const beat of voice.beats) {
-      for (const automation of beat.automations) {
-        const type=Object.keys(trackAutomationTypes).find(type=>trackAutomationTypes[type]===automation.type);
-        if (type) result.push({bar:barIndex,type,value:automation.value});
+    for (const staff of track.staves) {
+      const bars = onlyBar === undefined ? staff.bars : staff.bars.slice(onlyBar, onlyBar + 1);
+      for (const bar of bars) for (const voice of bar.voices) for (const beat of voice.beats) {
+        for (const automation of beat.automations) {
+          const type=Object.keys(trackAutomationTypes).find(type=>trackAutomationTypes[type]===automation.type);
+          if (type) result.push({bar:bar.index,type,value:automation.value});
+        }
       }
     }
     return result.sort((a,b)=>a.bar-b.bar || a.type.localeCompare(b.type));
@@ -689,5 +726,5 @@
   // section clipboard lives in section-clipboard.js; load it lazily for direct model users.
   const sectionApi=()=>{if(typeof globalThis!=='undefined'&&globalThis.SectionClipboard)return globalThis.SectionClipboard;if(typeof module==='object'&&module.exports)return require('./section-clipboard.js');throw Error('Section clipboard is unavailable.');};
   const section=(name)=>(...args)=>sectionApi()[name](...args);
-  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, restore, fingerprint, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, gpxUncompressedSize, assertSafeScoreFile, MAX_GPX_UNCOMPRESSED_BYTES, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
+  return {setTrackAutomation, trackAutomations, setTempoRamp, insertBar, setTuplet, addGraceNote, removeGraceNote, setFermata, fermataAt, copyBars, pasteBars, transposeNotes, setInstrument, playbackBarAt, loopBounds, tunings, snapshot, historySnapshot, restore, fingerprint, consolidate, createScore, addTrack, addBar, removeBar, beatAt, setDuration, deleteBeat, setTimeSignature, setNote, insertBeat, applyTuning, pasteBar, replaceBar, settings, gpxUncompressedSize, assertSafeScoreFile, MAX_GPX_UNCOMPRESSED_BYTES, copySection:section('copySection'), pasteSection:section('pasteSection'), cutSection:section('cutSection'), cutTrackBars:section('cutTrackBars')};
 });

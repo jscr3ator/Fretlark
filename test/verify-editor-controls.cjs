@@ -13,12 +13,12 @@ assert.ok(line("const query=new URLSearchParams(location.search)"), 'Editor quer
 {
   const html=fs.readFileSync('public/editor/index.html','utf8'),css=fs.readFileSync('public/editor/styles.css','utf8');
   assert.match(html,/id="touch-entry"[\s\S]*data-fret-key="0"[\s\S]*data-fret-key="Backspace"/);
-  for(const action of ['string-up','string-down','beat-prev','beat-next','bar-prev','bar-next','rest','slide','bend'])assert.ok(html.includes(`data-touch="${action}"`),`Touch bar exposes ${action}`);
-  assert.match(html,/id="touch-duration"[\s\S]*value="32"/);
+  for(const action of ['string-up','string-down','beat-prev','beat-next','bar-prev','bar-next','rest','slide','bend','pitch'])assert.ok(html.includes(`data-touch="${action}"`),`Touch bar exposes ${action}`);
+  assert.match(html,/id="touch-duration"[^<]*(?:(?!<\/select>)[\s\S])*value="64"/);
   for(const action of ['btn-cloud-save','btn-save','btn-midi','btn-wav','btn-ascii','btn-print','btn-toggle-palette','btn-toggle-inspector','btn-toggle-mixer','btn-download'])assert.ok(html.includes(`data-click="${action}"`),`More sheet exposes ${action}`);
   assert.match(css,/@media \(max-width:760px\), \(pointer:coarse\) and \(max-width:1020px\)/);
   assert.match(css,/env\(safe-area-inset-bottom\)/);
-  assert.match(editor,/enterFretDigit\(e\.key\)/);assert.match(editor,/enterFretDigit\(key\.dataset\.fretKey,24\)/);
+  assert.match(editor,/enterFretDigit\(e\.key\)/);assert.match(editor,/enterFretDigit\(key\.dataset\.fretKey\)/);
   assert.match(editor,/moveString\(e\.key==='ArrowUp'\?-1:1\)/);assert.match(editor,/action==='beat-next'\)move\(1\)/);
   assert.match(editor,/touchEditorEnabled\(\)&&!isViewer&&check\('editor-mode'\)&&!!curBeat\(\)/);
 }
@@ -33,11 +33,13 @@ assert.ok(line("const query=new URLSearchParams(location.search)"), 'Editor quer
     clearTimeout(){},setTimeout:()=>1,clearDigitEntry(){},toast:message=>actions.push(message),
   });
   vm.runInContext(editor.slice(start,end),context);
-  context.enterFretDigit('1',24);context.enterFretDigit('2',24);
+  context.enterFretDigit('1');context.enterFretDigit('2');
   assert.deepEqual(actions.filter(Array.isArray).filter(row=>row[0]?.fret).map(row=>row[0].fret),[1,12]);
   assert.equal(context.digitBuffer,'12');
-  context.clearDigitEntry=()=>{context.digitBuffer='';};context.enterFretDigit('2',24);context.enterFretDigit('5',24);
-  assert.equal(context.digitBuffer,'5','Touch fret pad restarts two-digit entry above fret 24');
+  context.digitBuffer='';context.enterFretDigit('3');context.enterFretDigit('6');
+  assert.equal(context.digitBuffer,'36','Phone and keyboard accept the highest supported fret');
+  context.digitBuffer='';context.enterFretDigit('3');context.enterFretDigit('7');
+  assert.equal(context.digitBuffer,'7','Entry restarts past fret 36');
 }
 
 // A near miss on a 6px fret must select the note, not the preceding rest.

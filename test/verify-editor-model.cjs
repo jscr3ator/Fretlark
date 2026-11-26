@@ -234,4 +234,28 @@ M.setNote(score,next,{string:2,fret:3});
 assert.equal(M.consolidate(score,{lightweight:true}), score, 'Lightweight consolidate keeps the score instance');
 assert.equal(M.beatAt(score,next).notes[0].fret, 3);
 assert.deepEqual(M.beatAt(reopen(score),next).notes.map(n=>n.fret), [3], 'Light edits still export and reload');
+{
+  const source = M.createScore();
+  M.setNote(source, pos, {string:1, fret:5, bend:8});
+  assert.equal(M.setNote(source, pos, {bend:2}).maxBendPoint.value, 2);
+  assert.equal(M.setNote(source, pos, {bend:0}).maxBendPoint, null);
+}
+
+// Undo on an imported arrangement must retain the same model as a recovery snapshot.
+{
+  const bytes = require('node:fs').readFileSync('public/editor/demo.gp');
+  const song = at.importer.ScoreLoader.loadScoreFromBytes(bytes, M.settings);
+  const disk = M.snapshot(song);
+  const first = M.historySnapshot(song);
+  assert.equal(M.historySnapshot(song, first), first);
+  M.setNote(song, pos, {string:1, fret:17});
+  const next = M.historySnapshot(song, first);
+  assert.notEqual(next, first);
+  assert.equal(next.tracks[1], first.tracks[1], 'Unedited parts share their undo data');
+  const restored = M.restore(first);
+  assert.equal(M.snapshot(restored), M.snapshot(M.restore(disk)));
+  restored.tracks[0].staves[0].stringTuning.tunings[0] = 30;
+  assert.equal(M.snapshot(M.restore(first)), M.snapshot(M.restore(disk)), 'Restoring and editing cannot mutate history');
+  assert.equal(M.beatAt(M.restore(next), pos).notes.find(n=>n.string===6).fret,17);
+}
 console.log('Editor model regression checks passed');
